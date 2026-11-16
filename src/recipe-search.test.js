@@ -100,8 +100,9 @@ test('ingredient pills add on Enter, trim whitespace and reject case-insensitive
   assert.equal(addIngredientFilter(one, '   '), one);
   const two = addIngredientFilter(one, '  olive   oil  ');
   assert.deepEqual(two, ['garlic', 'olive oil']);
-  assert.deepEqual(removeIngredientFilter(two, 'GARLIC'), ['olive oil']);
-  assert.deepEqual(removeIngredientFilter(two, 'olive oil'), []);
+  const afterRemovingGarlic = removeIngredientFilter(two, 'GARLIC');
+  assert.deepEqual(afterRemovingGarlic, ['olive oil']);
+  assert.deepEqual(removeIngredientFilter(afterRemovingGarlic, 'olive oil'), []);
   assert.deepEqual(removeIngredientFilter(two, 'not-selected'), two);
   const accented = addIngredientFilter([], 'Crème');
   assert.equal(addIngredientFilter(accented, 'creme'), accented);
