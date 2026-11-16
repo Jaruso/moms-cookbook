@@ -58,9 +58,18 @@ In the GitHub repository, go to **Settings → Secrets and variables → Actions
 
 Then go to **Actions → Deploy GitHub Pages → Run workflow** to rebuild the frontend with the Worker URL. The API URL is public configuration, **not a secret**.
 
-## Updating the Cloudflare Worker
+## Automatic Cloudflare Worker deployment
 
-When `worker/src/index.js` changes, **deploy it again**. A GitHub Pages build deploys only the frontend; it does not update Cloudflare. From a fresh local clone or pull:
+The GitHub Actions workflow in `.github/workflows/deploy-worker.yml` runs the Worker tests and deploys the existing `moms-cookbook-api` Worker when files inside `worker/` change on `main`. You can also run it manually under **Actions → Deploy Cloudflare Worker → Run workflow**. Changes only to recipes or the frontend do not trigger a Worker deployment.
+
+Set these **repository Actions secrets** once under **Settings → Secrets and variables → Actions → New repository secret**:
+
+- `CLOUDFLARE_ACCOUNT_ID` — your Cloudflare account ID (shown in the Cloudflare dashboard).
+- `CLOUDFLARE_API_TOKEN` — a dedicated Cloudflare API token with **Workers Editor** access scoped to the existing Worker `moms-cookbook-api`, or the **Edit Cloudflare Workers** permission scoped to its account if using the standard token template. No GitHub personal access token should be used here.
+
+The workflow uses Cloudflare's `wrangler-action@v4` from the `worker/` directory and does **not** recreate or upload the app's runtime secrets (`ADMIN_PASSWORD`, `SESSION_SECRET`, `GITHUB_TOKEN`). Those remain configured directly in Cloudflare.
+
+**Important:** The initial workflow run fails until both GitHub secrets are configured. To deploy manually instead, run:
 
 ```bash
 git pull
@@ -68,7 +77,7 @@ cd worker
 npx wrangler deploy
 ```
 
-The existing Cloudflare secrets remain configured. This update adds authenticated `GET /api/recipes` (manage list), `PUT /api/recipes/:id` (edit), and `PATCH /api/recipes/:id/visibility` (hide/unhide). Recipes use GitHub file SHA checks, so stale updates result in a conflict instead of silently overwriting newer changes.
+The Worker exposes authenticated `GET /api/recipes` (manage list), `PUT /api/recipes/:id` (edit), and `PATCH /api/recipes/:id/visibility` (hide/unhide). Recipe updates use GitHub file SHA checks to reject stale writes.
 
 ## Local development
 
