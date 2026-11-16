@@ -1,6 +1,6 @@
 {
   "id": "sample-sunday-tomato-sauce",
-  "title": "Sunday Tomato Sauce (Sample)",
+  "title": "Sunday Tomato Sauce",
   "description": [
     "A simple example recipe to show how the cookbook works. Replace it with one of Mom's recipes."
   ],
@@ -24,5 +24,7 @@
     "Finish with torn basil and serve over pasta."
   ],
   "image": null,
-  "createdAt": "2026-11-16T00:00:00.000Z"
+  "createdAt": "2026-11-16T00:00:00.000Z",
+  "hidden": false,
+  "updatedAt": "2026-11-16T17:02:52.092Z"
 }
