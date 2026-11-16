@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 const recipeFiles = import.meta.glob('../recipes/*.json', { eager: true, import: 'default' });
 const recipes = Object.values(recipeFiles).sort((a, b) => a.title.localeCompare(b.title));
