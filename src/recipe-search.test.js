@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeSearch, canonicalCategory, availableCategories, totalRecipeMinutes, searchRecipes } from './recipe-search.js';
+import { normalizeSearch, canonicalCategory, availableCategories, totalRecipeMinutes, searchRecipes, addIngredientFilter, removeIngredientFilter } from './recipe-search.js';
 
 const recipes = [
   {
@@ -91,4 +91,43 @@ test('relevance puts full title match ahead of weaker ingredient matches', () =>
     { title: 'Soup', ingredients: ['garlic cloves'], steps: [], category: 'Dinner' },
   ];
   assert.equal(searchRecipes(titles, { query: 'garlic' })[0].title, 'Garlic');
+});
+
+test('ingredient pills add on Enter, trim whitespace and reject case-insensitive duplicates', () => {
+  const one = addIngredientFilter([], '  garlic  ');
+  assert.deepEqual(one, ['garlic']);
+  assert.equal(addIngredientFilter(one, 'GARLIC'), one);
+  assert.equal(addIngredientFilter(one, '   '), one);
+  const two = addIngredientFilter(one, '  olive   oil  ');
+  assert.deepEqual(two, ['garlic', 'olive oil']);
+  assert.deepEqual(removeIngredientFilter(two, 'GARLIC'), ['olive oil']);
+  assert.deepEqual(removeIngredientFilter(two, 'olive oil'), []);
+  assert.deepEqual(removeIngredientFilter(two, 'not-selected'), two);
+  const accented = addIngredientFilter([], 'Crème');
+  assert.equal(addIngredientFilter(accented, 'creme'), accented);
+});
+
+test('ingredient pills require every selection to match an actual ingredient entry', () => {
+  assert.deepEqual(searchRecipes(recipes, { ingredients: ['garlic'] }).map(r => r.id),
+    ['chicken', 'tomato-sauce']);
+  assert.deepEqual(searchRecipes(recipes, { ingredients: ['garlic', 'chicken'] }).map(r => r.id),
+    ['chicken']);
+  assert.deepEqual(searchRecipes(recipes, { ingredients: ['garlic', 'tomato'] }).map(r => r.id),
+    ['tomato-sauce']);
+  assert.deepEqual(searchRecipes(recipes, { ingredients: ['garlic', 'sourdough'] }), []);
+  assert.deepEqual(searchRecipes(recipes, { ingredients: ['olive oil', 'garlic'] }).map(r => r.id),
+    ['tomato-sauce']);
+  assert.deepEqual(searchRecipes(recipes, { ingredients: ['chicken garlic'] }), [],
+    'A multiword pill should belong to one ingredient line, not be split between lines');
+});
+
+test('multiple ingredient pills combine with category, time and text search', () => {
+  const filters = { query: 'chicken', category: 'Dinner', maxMinutes: '30', ingredients: ['garlic', 'chicken'] };
+  assert.deepEqual(searchRecipes(recipes, filters).map(r => r.id), ['chicken']);
+  assert.deepEqual(searchRecipes(recipes, { ...filters, maxMinutes: '10' }), []);
+  assert.deepEqual(searchRecipes(recipes, { ...filters, category: 'Appetizers' }), []);
+  assert.deepEqual(searchRecipes(recipes, { ingredients: ['sourdough', 'tomatoes'] }).map(r => r.id),
+    ['toast']);
+  assert.deepEqual(searchRecipes(recipes, { ingredients: [] }).map(r => r.id),
+    ['chicken', 'missing-time', 'tomato-sauce', 'toast']);
 });

@@ -54,6 +54,21 @@ function terms(value) {
   return normalizeSearch(value).split(' ').filter(Boolean);
 }
 
+// Pill controls share normalization rules with the search matcher.
+export function addIngredientFilter(current, input) {
+  const existing = Array.isArray(current) ? current : [];
+  const label = String(input ?? '').trim().replace(/\s+/g, ' ');
+  const normalized = normalizeSearch(label);
+  if (!normalized || existing.some(item => normalizeSearch(item) === normalized)) return existing;
+  return [...existing, label];
+}
+
+export function removeIngredientFilter(current, input) {
+  const existing = Array.isArray(current) ? current : [];
+  const normalized = normalizeSearch(input);
+  return existing.filter(item => normalizeSearch(item) !== normalized);
+}
+
 function paragraphText(value) {
   if (Array.isArray(value)) return value.filter(part => typeof part === 'string').join(' ');
   return typeof value === 'string' ? value : '';
@@ -83,7 +98,11 @@ function matchScore(recipe, queryTerms, normalizedQuery) {
 export function searchRecipes(recipes, filters = {}) {
   const normalizedQuery = normalizeSearch(filters.query);
   const queryTerms = terms(filters.query);
+  // Retain support for the old one-field ingredient search while the new UI
+  // sends individual pills. Each pill must match an actual ingredient entry.
   const ingredientTerms = terms(filters.ingredient);
+  const ingredientPhrases = (Array.isArray(filters.ingredients) ? filters.ingredients : [])
+    .map(normalizeSearch).filter(Boolean);
   const category = normalizeSearch(canonicalCategory(filters.category));
   const limit = Number(filters.maxMinutes) || 0;
 
@@ -95,8 +114,10 @@ export function searchRecipes(recipes, filters = {}) {
         const total = totalRecipeMinutes(recipe);
         if (total === null || total > limit) return null;
       }
-      const ingredients = normalizeSearch(Array.isArray(recipe.ingredients) ? recipe.ingredients.join(' ') : '');
+      const ingredientRows = Array.isArray(recipe.ingredients) ? recipe.ingredients.map(normalizeSearch) : [];
+      const ingredients = ingredientRows.join(' ');
       if (!ingredientTerms.every(term => ingredients.includes(term))) return null;
+      if (!ingredientPhrases.every(phrase => ingredientRows.some(row => row.includes(phrase)))) return null;
       const score = matchScore(recipe, queryTerms, normalizedQuery);
       return score < 0 ? null : { recipe, score };
     })

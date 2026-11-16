@@ -439,6 +439,89 @@ button:disabled { opacity: .55; cursor: not-allowed; }
   margin-bottom: 8px;
 }
 .advanced-filter-field input, .advanced-filter-field select { min-height: 48px; }
+.ingredient-pill-picker {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  min-height: 50px;
+  padding: 6px 7px;
+  background: #fff;
+  border: 1px solid #cbd2c8;
+  border-radius: 9px;
+  transition: border-color .15s, box-shadow .15s;
+}
+.ingredient-pill-picker:focus-within {
+  border-color: #6b9274;
+  box-shadow: 0 0 0 3px #dbe8d8;
+}
+.ingredient-filter-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 3px 4px 3px 12px;
+  border: 1px solid #cadbc9;
+  border-radius: 99px;
+  background: #e8eee6;
+  color: var(--forest);
+  font-size: .9rem;
+  font-weight: 600;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.ingredient-filter-pill button {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--forest);
+  font-size: 1.3rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.ingredient-filter-pill button:hover { background: #cddfc9; }
+.ingredient-filter-pill button:focus-visible, .ingredient-pill-add:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.ingredient-pill-picker > input,
+.ingredient-pill-picker > input:focus {
+  flex: 1 1 130px;
+  width: auto;
+  min-width: 100px;
+  min-height: 34px;
+  padding: 7px 8px;
+  border: none;
+  box-shadow: none;
+  outline: none;
+  background: transparent;
+}
+.ingredient-pill-add {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 5px 12px;
+  border: 1px solid #cadbc9;
+  border-radius: 8px;
+  background: #e8eee6;
+  color: var(--forest);
+  font-size: .88rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.ingredient-pill-add:hover:not(:disabled) { background: #d5e4d3; }
+.ingredient-pill-add:disabled { opacity: .45; cursor: default; }
+.ingredient-filter-help {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: .8rem;
+  line-height: 1.45;
+}
 .recipe-search-toolbar + .recipe-list,
 .advanced-recipe-filters + .recipe-list { margin-top: 22px; }
 .recipe-search-empty p { margin-bottom: 12px; }

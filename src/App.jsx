@@ -3,7 +3,7 @@ import publicRecipes from './public-recipes.json';
 import { UNITS, makeIngredientRow, parseIngredientString, serializeIngredient, serializeIngredients } from './ingredients.js';
 import { descriptionParagraphs, descriptionEditorText, descriptionPreview } from './description.js';
 import { recoveryKey, formSignature, createRecovery, readRecovery, writeRecovery, removeRecovery, listRecoveries } from './recovery.js';
-import { availableCategories, searchRecipes } from './recipe-search.js';
+import { availableCategories, searchRecipes, addIngredientFilter, removeIngredientFilter } from './recipe-search.js';
 
 const recipes = publicRecipes.slice().sort((a, b) => a.title.localeCompare(b.title));
 const BASE = import.meta.env.BASE_URL;
@@ -75,16 +75,35 @@ function RecipeDetail({ recipe, onBack, isPreview = false }) {
   );
 }
 
-const EMPTY_SEARCH_FILTERS = { query: '', category: '', ingredient: '', maxMinutes: '' };
+const EMPTY_SEARCH_FILTERS = { query: '', category: '', ingredients: [], maxMinutes: '' };
 const publicCategories = availableCategories(recipes);
 
 function RecipeIndex({
   onChoose, notice, onDismissNotice, filters, onFilterChange, onClearFilters,
   expanded, onExpandedChange,
 }) {
+  const [ingredientEntry, setIngredientEntry] = useState('');
+  const ingredientFilters = filters.ingredients || [];
   const shown = searchRecipes(recipes, filters);
-  const advancedCount = (filters.ingredient.trim() ? 1 : 0) + (filters.maxMinutes ? 1 : 0);
-  const hasFilters = Boolean(filters.query.trim() || filters.category || filters.ingredient.trim() || filters.maxMinutes);
+  const advancedCount = ingredientFilters.length + (filters.maxMinutes ? 1 : 0);
+  const hasFilters = Boolean(filters.query.trim() || filters.category || ingredientFilters.length || filters.maxMinutes);
+
+  function addIngredientPill() {
+    const value = ingredientEntry.trim();
+    if (!value) return;
+    const next = addIngredientFilter(ingredientFilters, value);
+    if (next !== ingredientFilters) onFilterChange({ ingredients: next });
+    setIngredientEntry('');
+  }
+
+  function removeIngredientPill(ingredient) {
+    onFilterChange({ ingredients: removeIngredientFilter(ingredientFilters, ingredient) });
+  }
+
+  function clearAllFilters() {
+    setIngredientEntry('');
+    onClearFilters();
+  }
 
   return (
     <main className="library-page">
@@ -126,15 +145,37 @@ function RecipeIndex({
             {shown.length} {shown.length === 1 ? 'recipe' : 'recipes'}
           </span>
           {hasFilters && <button type="button" className="text-button clear-filters-button"
-            onClick={onClearFilters}>Clear filters</button>}
+            onClick={clearAllFilters}>Clear filters</button>}
         </div>
       </div>
       <div id="advanced-recipe-filters" className="advanced-recipe-filters" hidden={!expanded}>
         <div className="advanced-filter-field">
-          <label htmlFor="recipe-ingredient-filter">Must include ingredient</label>
-          <input id="recipe-ingredient-filter" type="search" value={filters.ingredient}
-            placeholder="e.g. garlic"
-            onChange={e => onFilterChange({ ingredient: e.target.value })} />
+          <label htmlFor="recipe-ingredient-filter">Must include ingredients</label>
+          <div className="ingredient-pill-picker" role="group" aria-label="Required ingredients">
+            {ingredientFilters.map(ingredient => (
+              <span key={ingredient} className="ingredient-filter-pill">
+                <span>{ingredient}</span>
+                <button type="button" aria-label={`Remove ${ingredient} ingredient`}
+                  title={`Remove ${ingredient}`}
+                  onClick={() => removeIngredientPill(ingredient)}>×</button>
+              </span>
+            ))}
+            <input id="recipe-ingredient-filter" type="text" value={ingredientEntry}
+              placeholder={ingredientFilters.length ? 'Add another ingredient...' : 'e.g. garlic'}
+              aria-describedby="ingredient-filter-help"
+              onChange={e => setIngredientEntry(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+                  e.preventDefault();
+                  addIngredientPill();
+                }
+              }} />
+            <button type="button" className="ingredient-pill-add"
+              disabled={!ingredientEntry.trim()} onClick={addIngredientPill}>Add</button>
+          </div>
+          <p className="ingredient-filter-help" id="ingredient-filter-help">
+            Press Enter or Add. Recipes must contain every selected ingredient.
+          </p>
         </div>
         <div className="advanced-filter-field">
           <label htmlFor="recipe-time-filter">Total time (prep + cooking)</label>
@@ -168,7 +209,7 @@ function RecipeIndex({
         {!shown.length && (
           <div className="empty-state recipe-search-empty">
             <p>No recipes found. Try another search or clear your filters.</p>
-            {hasFilters && <button type="button" className="outline-button" onClick={onClearFilters}>Clear filters</button>}
+            {hasFilters && <button type="button" className="outline-button" onClick={clearAllFilters}>Clear filters</button>}
           </div>
         )}
       </div>
