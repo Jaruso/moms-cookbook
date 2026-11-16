@@ -1,0 +1,17 @@
+{
+  "id": "test-dish-46d82074",
+  "title": "Test dish",
+  "description": "testing",
+  "category": "Dinner",
+  "prepMinutes": 10,
+  "cookMinutes": 30,
+  "servings": "4",
+  "ingredients": [
+    "2 cups flour"
+  ],
+  "steps": [
+    "do the thing"
+  ],
+  "image": null,
+  "createdAt": "2026-11-16T15:09:47.162Z"
+}
