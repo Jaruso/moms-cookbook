@@ -144,7 +144,7 @@ test('save an incomplete draft, reopen it, then publish when complete', async t 
       currentSha = writes === 1 ? sha1 : sha2;
       return Response.json({ content: { sha: currentSha } });
     }
-    if (url.pathname.endsWith('/contents/' + stored?.id + '.json')) {
+    if (url.pathname.endsWith('/contents/recipes/' + stored?.id + '.json')) {
       return Response.json({
         type: 'file', encoding: 'base64', sha: currentSha,
         content: Buffer.from(JSON.stringify(stored)).toString('base64'),
