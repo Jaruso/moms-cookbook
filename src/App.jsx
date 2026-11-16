@@ -95,19 +95,13 @@ function RecipeIndex({
           <button type="button" onClick={onDismissNotice} aria-label="Dismiss confirmation">×</button>
         </div>
       )}
-      <div className="library-heading">
-        <div>
-          <p className="eyebrow">The family collection</p>
-          <h1>Recipes</h1>
-        </div>
+      <div className="recipe-search-toolbar" role="search" aria-label="Find recipes">
         <div className="search-wrap">
           <label className="sr-only" htmlFor="recipe-search">Search recipes or ingredients</label>
           <input id="recipe-search" type="search" value={filters.query}
             onChange={e => onFilterChange({ query: e.target.value })}
             placeholder="Search recipes or ingredients..." />
         </div>
-      </div>
-      <div className="recipe-filter-bar">
         <div className="recipe-filter-controls">
           <label className="recipe-category-select" htmlFor="recipe-category">
             <span className="sr-only">Choose a recipe category</span>

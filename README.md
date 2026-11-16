@@ -14,7 +14,7 @@ There is **one admin password**, no registration and no automated password reset
 
 ## Finding recipes
 
-The public home page offers a live **Search recipes or ingredients** field and a **single-category** dropdown, showing only categories that have published recipes. Old singular category values (for example, `Appetizer`) are grouped under the plural label (`Appetizers`).
+The public home page uses a compact, single-row search toolbar (without a large page-title banner) with a live **Search recipes or ingredients** field and a **single-category** dropdown, showing only categories that have published recipes. Old singular category values (for example, `Appetizer`) are grouped under the plural label (`Appetizers`).
 
 **More filters** is collapsed by default and offers an ingredient-only search and a total time limit (30, 60, or 90 minutes, calculated from prep + cook). Search covers titles, ingredient lists, descriptions, categories, and directions. Multiple words must all match somewhere in a recipe; matching ignores capitalization, accents, and punctuation. When searching, closer title matches rank first; otherwise recipes are alphabetical. All filters combine, the result count updates immediately, and **Clear filters** resets the search.
 
