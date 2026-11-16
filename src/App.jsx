@@ -80,6 +80,12 @@ function resizePhoto(file) {
   });
 }
 
+const categories = [
+  'Breakfast', 'Lunch', 'Dinner', 'Appetizers', 'Side Dishes',
+  'Soups', 'Salads', 'Breads', 'Desserts', 'Snacks',
+  'Sauces & Condiments', 'Drinks', 'Other',
+];
+
 const blank = {
   title: '', description: '', category: '', prepMinutes: '', cookMinutes: '',
   servings: '', ingredients: '', steps: '',
@@ -160,7 +166,12 @@ function Admin() {
             <form onSubmit={publish} className="editor">
               <label>Recipe name *<input value={form.title} onChange={e => change('title', e.target.value)} maxLength={120} required /></label>
               <label>Short description<textarea rows={2} value={form.description} onChange={e => change('description', e.target.value)} maxLength={800} /></label>
-              <label>Category<input placeholder="Dinner, Dessert, Bread…" value={form.category} onChange={e => change('category', e.target.value)} maxLength={60} /></label>
+              <label>Category
+                <select value={form.category} onChange={e => change('category', e.target.value)} required>
+                  <option value="">Select a category</option>
+                  {categories.map(category => <option key={category} value={category}>{category}</option>)}
+                </select>
+              </label>
               <div className="fields-row">
                 <label>Prep minutes<input type="number" min="0" max="999" value={form.prepMinutes} onChange={e => change('prepMinutes', e.target.value)} /></label>
                 <label>Cook minutes<input type="number" min="0" max="999" value={form.cookMinutes} onChange={e => change('cookMinutes', e.target.value)} /></label>
