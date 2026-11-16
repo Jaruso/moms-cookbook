@@ -120,6 +120,21 @@ main, article { padding-top: clamp(28px, 4vw, 56px); }
 .empty-state { grid-column: 1/-1; padding: 24px; }
 
 /* Recipe detail */
+/* Ordered description paragraphs; empty insertion points await future ad content. */
+.recipe-description-flow {
+  max-width: 960px;
+  margin: 0 0 40px;
+}
+.recipe-description-section { margin-bottom: 24px; }
+.recipe-description-section p {
+  margin: 0;
+  color: #4b5a4f;
+  font-size: clamp(1.06rem, 1.35vw, 1.22rem);
+  line-height: 1.82;
+}
+.recipe-description-insertion:empty { display: none; }
+
+
 .recipe-intro {
   background: linear-gradient(120deg, #e9eee5, #f3efe6);
   padding: clamp(28px, 4vw, 60px);

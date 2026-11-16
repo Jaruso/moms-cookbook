@@ -1,7 +1,9 @@
 {
   "id": "test-dish-46d82074",
   "title": "Test dish",
-  "description": "testing",
+  "description": [
+    "testing"
+  ],
   "category": "Dinner",
   "prepMinutes": 10,
   "cookMinutes": 30,

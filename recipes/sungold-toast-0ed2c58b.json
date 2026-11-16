@@ -1,7 +1,9 @@
 {
   "id": "sungold-toast-0ed2c58b",
   "title": "Sungold Toast",
-  "description": "The best way to eat fresh garden tomatoes",
+  "description": [
+    "The best way to eat fresh garden tomatoes"
+  ],
   "category": "Appetizer",
   "prepMinutes": 5,
   "cookMinutes": 2,

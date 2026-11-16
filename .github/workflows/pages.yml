@@ -31,6 +31,8 @@ jobs:
         run: node --test worker/src/index.test.js
       - name: Test ingredient editor
         run: node --test src/ingredients.test.js
+      - name: Test description paragraphs
+        run: node --test src/description.test.js
       - name: Build
         env:
           VITE_API_URL: ${{ vars.VITE_API_URL || 'https://moms-cookbook-api.joseph-caruso-pc.workers.dev' }}

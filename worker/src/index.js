@@ -89,6 +89,29 @@ function list(value, name, maxItems, maxLength) {
   return value.map(item => item.trim());
 }
 
+// Description is stored as ordered paragraphs. Legacy single-string recipes
+// are accepted and normalized when read or edited.
+function descriptionParagraphs(value) {
+  if (value == null || value === '') return [];
+  if (typeof value !== 'string' && !Array.isArray(value)) {
+    throw new ApiError('Description must be text or an array of paragraphs.');
+  }
+  const parts = Array.isArray(value) ? value : [value];
+  if (parts.length > 30 || parts.some(part => typeof part !== 'string') ||
+      parts.reduce((length, part) => length + part.length, 0) > 12000) {
+    throw new ApiError('Description must be at most 30 paragraphs and 12,000 characters.');
+  }
+  const paragraphs = parts.flatMap(part =>
+    part.replace(/\r\n?/g, '\n').split(/\n\s*\n+/)
+      .map(text => text.replace(/[ \t]*\n[ \t]*/g, ' ').trim())
+      .filter(Boolean)
+  );
+  if (paragraphs.length > 30 || paragraphs.some(text => text.length > 2000)) {
+    throw new ApiError('Description must be at most 30 paragraphs, each at most 2,000 characters.');
+  }
+  return paragraphs;
+}
+
 function minutes(value, name) {
   if (value === null || value === undefined || value === '') return null;
   if (!Number.isInteger(value) || value < 0 || value > 999) throw new ApiError(`${name} must be 0–999 minutes.`);
@@ -121,7 +144,7 @@ function validateRecipe(body, previous = null) {
     ...(previous || {}),
     id,
     title,
-    description: str(body.description, 'Description', 800),
+    description: descriptionParagraphs(body.description),
     category: str(body.category, 'Category', 60, true),
     prepMinutes: minutes(body.prepMinutes, 'Prep time'),
     cookMinutes: minutes(body.cookMinutes, 'Cook time'),
@@ -178,6 +201,7 @@ async function getRecipe(env, id) {
   const item = await github(env, `/contents/${pathFor(id)}?ref=main`);
   if (item.type !== 'file' || item.encoding !== 'base64' || !item.content) throw new ApiError('Cannot read recipe.', 502);
   const recipe = JSON.parse(decodeText(item.content));
+  recipe.description = descriptionParagraphs(recipe.description);
   if (recipe.id !== id) throw new ApiError('Recipe ID does not match its file.', 502);
   return { recipe, sha: item.sha };
 }

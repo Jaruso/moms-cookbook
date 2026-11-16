@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import publicRecipes from './public-recipes.json';
 import { UNITS, makeIngredientRow, parseIngredientString, serializeIngredients } from './ingredients.js';
+import { descriptionParagraphs, descriptionEditorText, descriptionPreview } from './description.js';
 
 const recipes = publicRecipes.slice().sort((a, b) => a.title.localeCompare(b.title));
 const BASE = import.meta.env.BASE_URL;
@@ -10,19 +11,40 @@ function picture(recipe) {
   return recipe.image ? `${BASE}${recipe.image.replace(/^\//, '')}` : null;
 }
 
+// Each paragraph is its own content section. Empty insertion nodes are reserved
+// for future ads and do not display anything until content is inserted into them.
+function RecipeDescription({ value }) {
+  const paragraphs = descriptionParagraphs(value);
+  if (!paragraphs.length) return null;
+  return (
+    <div className="recipe-description-flow">
+      {paragraphs.map((paragraph, index) => (
+        <React.Fragment key={index}>
+          <section className="recipe-description-section" data-paragraph={index + 1}>
+            <p>{paragraph}</p>
+          </section>
+          {index < paragraphs.length - 1 && (
+            <div className="recipe-description-insertion" data-after-paragraph={index + 1} />
+          )}
+        </React.Fragment>
+      ))}
+    </div>
+  );
+}
+
 function RecipeDetail({ recipe, onBack }) {
   return (
     <article className="recipe-detail">
       <div className="recipe-intro">
         <button type="button" className="text-button" onClick={onBack}>← All recipes</button>
         <h1>{recipe.title}</h1>
-        {recipe.description && <p className="recipe-description">{recipe.description}</p>}
         <p className="recipe-meta">
           {[recipe.category, recipe.prepMinutes != null && `Prep ${recipe.prepMinutes} min`,
             recipe.cookMinutes != null && `Cook ${recipe.cookMinutes} min`,
             recipe.servings && `Serves ${recipe.servings}`].filter(Boolean).join(' · ')}
         </p>
       </div>
+      <RecipeDescription value={recipe.description} />
       {picture(recipe) && <img className="recipe-photo" src={picture(recipe)} alt={recipe.title} />}
       <div className="recipe-body">
         <section className="ingredients">
@@ -40,7 +62,7 @@ function RecipeDetail({ recipe, onBack }) {
 
 function RecipeIndex({ onChoose, notice, onDismissNotice }) {
   const [query, setQuery] = useState('');
-  const shown = recipes.filter(r => [r.title, r.category, r.description].join(' ').toLowerCase().includes(query.toLowerCase()));
+  const shown = recipes.filter(r => [r.title, r.category, descriptionParagraphs(r.description).join(' ')].join(' ').toLowerCase().includes(query.toLowerCase()));
   return (
     <main className="library-page">
       {notice && (
@@ -67,7 +89,7 @@ function RecipeIndex({ onChoose, notice, onDismissNotice }) {
             <span className="recipe-card-body">
               <span className="card-category">{recipe.category || 'Recipe'}</span>
               <strong>{recipe.title}</strong>
-              {recipe.description && <span className="card-description">{recipe.description}</span>}
+              {descriptionPreview(recipe.description) && <span className="card-description">{descriptionPreview(recipe.description)}</span>}
               <span className="card-bottom">
                 <span>{[
                   recipe.prepMinutes != null && ('Prep ' + recipe.prepMinutes + ' min'),
@@ -209,7 +231,7 @@ function Admin({ onPublished }) {
   }
   function editRecipe(recipe) {
     setForm({
-      title: recipe.title || '', description: recipe.description || '', category: recipe.category || '',
+      title: recipe.title || '', description: descriptionEditorText(recipe.description), category: recipe.category || '',
       prepMinutes: recipe.prepMinutes ?? '', cookMinutes: recipe.cookMinutes ?? '',
       servings: recipe.servings || '', ingredients: recipe.ingredients.map(parseIngredientString),
       steps: recipe.steps.join('\n'),
@@ -225,6 +247,7 @@ function Admin({ onPublished }) {
       const imageBase64 = photo ? await resizePhoto(photo) : null;
       const payload = {
         ...form,
+        description: descriptionParagraphs(form.description),
         prepMinutes: form.prepMinutes === '' ? null : Number(form.prepMinutes),
         cookMinutes: form.cookMinutes === '' ? null : Number(form.cookMinutes),
         ingredients: serializeIngredients(form.ingredients),
@@ -306,7 +329,7 @@ function Admin({ onPublished }) {
                 <h2>{editing === 'new' ? 'Add recipe' : 'Edit recipe'}</h2>
                 <form onSubmit={saveRecipe} className="editor">
                   <label>Recipe name *<input value={form.title} onChange={e => change('title', e.target.value)} maxLength={120} required /></label>
-                  <label>Short description<textarea rows={2} value={form.description} onChange={e => change('description', e.target.value)} maxLength={800} /></label>
+                  <label>Description <span className="hint">(optional — separate paragraphs with a blank line)</span><textarea rows={8} value={form.description} onChange={e => change('description', e.target.value)} maxLength={12000} placeholder={"Tell the story behind this recipe.\n\nStart a new paragraph by leaving a blank line."} /></label>
                   <label>Category
                     <select value={form.category} onChange={e => change('category', e.target.value)} required>
                       <option value="">Select a category</option>

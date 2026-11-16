@@ -79,6 +79,9 @@ npx wrangler deploy
 
 The Worker exposes authenticated `GET /api/recipes` (manage list), `PUT /api/recipes/:id` (edit), and `PATCH /api/recipes/:id/visibility` (hide/unhide). Recipe updates use GitHub file SHA checks to reject stale writes.
 
+Changes to `worker/src/index.js` (including description validation) need to reach Cloudflare through the Worker deployment workflow. If its GitHub secrets are not configured, run `cd worker && npx wrangler deploy` locally after pulling the latest changes.
+
+
 ## Local development
 
 ```bash
@@ -104,7 +107,20 @@ worker/wrangler.toml      Nonsecret Worker config
 .github/workflows/        GitHub Pages deployment
 ```
 
-Recipe fields: `id`, `title`, `description`, `category`, `prepMinutes`, `cookMinutes`, `servings`, `ingredients` (array of strings), `steps` (array of strings), `image` (relative path or null), `hidden` (optional boolean, defaults to visible), `createdAt`, and `updatedAt` (UTC ISO timestamps). The sample is demonstration content, not an actual family recipe.
+Recipe fields: `id`, `title`, `description` (ordered array of paragraphs), `category`, `prepMinutes`, `cookMinutes`, `servings`, `ingredients` (array of strings), `steps` (array of strings), `image` (relative path or null), `hidden` (optional boolean, defaults to visible), `createdAt`, and `updatedAt` (UTC ISO timestamps). The sample is demonstration content, not an actual family recipe.
+
+### Optional description and paragraph sections
+
+The admin form has an optional **Description** textarea. Separate paragraphs with **one blank line**. The Worker validates the text (up to 30 paragraphs, 2,000 characters each, 12,000 characters total) and saves `description` as an ordered array of strings in each recipe JSON:
+
+```json
+"description": [
+  "The first paragraph of the recipe story.",
+  "The next paragraph, still in the original order."
+]
+```
+
+Existing recipes that used a single description string are accepted by the API and frontend; legacy records are normalized when read or edited. Each paragraph appears as its own `<section class="recipe-description-section">` on the public page. An **empty `recipe-description-insertion` element** is rendered between consecutive sections with `data-after-paragraph` showing its position. This reserves a stable insertion point for future ad components without displaying placeholder ads or injecting scripts today. Recipe cards use the first paragraph as a short preview; search includes all paragraphs.
 
 ### Ingredient entry
 

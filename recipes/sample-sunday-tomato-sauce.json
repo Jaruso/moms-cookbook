@@ -1,7 +1,9 @@
 {
   "id": "sample-sunday-tomato-sauce",
   "title": "Sunday Tomato Sauce (Sample)",
-  "description": "A simple example recipe to show how the cookbook works. Replace it with one of Mom's recipes.",
+  "description": [
+    "A simple example recipe to show how the cookbook works. Replace it with one of Mom's recipes."
+  ],
   "category": "Dinner",
   "prepMinutes": 10,
   "cookMinutes": 40,
