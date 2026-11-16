@@ -13,7 +13,7 @@
 }
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 320px; }
-button, input, textarea { font: inherit; }
+button, input, textarea, select { font: inherit; }
 .shell {
   width: min(1440px, calc(100% - clamp(36px, 7vw, 112px)));
   margin: 0 auto;
@@ -121,7 +121,7 @@ p { margin: 0 0 18px; }
 .arrow { color: var(--accent); margin-left: auto; font-size: 1.4rem; }
 .editor { display: grid; gap: 20px; max-width: 920px; }
 .editor label { display: grid; gap: 7px; font-weight: 600; }
-input, textarea {
+input, textarea, select {
   width: 100%;
   padding: 12px 14px;
   color: var(--ink);
@@ -130,7 +130,7 @@ input, textarea {
   border-radius: 7px;
 }
 textarea { resize: vertical; }
-input:focus, textarea:focus { outline: 2px solid #bd806c; outline-offset: 1px; border-color: var(--accent); }
+input:focus, textarea:focus, select:focus { outline: 2px solid #bd806c; outline-offset: 1px; border-color: var(--accent); }
 input[type=file] { padding: 9px; }
 .fields-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 button[type=submit] {
