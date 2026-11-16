@@ -1,0 +1,25 @@
+{
+  "id": "sungold-toast-0ed2c58b",
+  "title": "Sungold Toast",
+  "description": "The best way to eat fresh garden tomatoes",
+  "category": "Appetizer",
+  "prepMinutes": 5,
+  "cookMinutes": 2,
+  "servings": "",
+  "ingredients": [
+    "2 cups sun-gold tomatoes",
+    "4 slices of sourdough bread",
+    "2 tablespoons of good olive oil",
+    "10-12 basil leaves, torn",
+    "1/2 clove of garlic",
+    "Salt to taste"
+  ],
+  "steps": [
+    "Halve the cherry tomatoes and toss with olive oil and salt to taste in a mixing bowl",
+    "Toast sourdough till desired doneness, then immediately when hot, rub the halved garlic glove over the surface of the bread till fragrant.",
+    "Toss basil into tomatoes gently and spoon over the sliced sourdough toast.",
+    "Enjoy!"
+  ],
+  "image": null,
+  "createdAt": "2026-11-16T15:28:03.129Z"
+}
