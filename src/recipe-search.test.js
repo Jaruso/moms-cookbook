@@ -132,3 +132,30 @@ test('multiple ingredient pills combine with category, time and text search', ()
   assert.deepEqual(searchRecipes(recipes, { ingredients: [] }).map(r => r.id),
     ['chicken', 'missing-time', 'tomato-sauce', 'toast']);
 });
+
+test('ingredient pills are case-insensitive and allow partial ingredient names', () => {
+  const slicedTomatoes = [
+    {
+      id: 'tomato-slices', title: 'Tomato Crostini', category: 'Appetizers',
+      ingredients: ['2 cups Tomato Slices', 'Fresh BASIL leaves'], steps: ['Arrange and serve.'],
+    },
+    {
+      id: 'tomato-puree', title: 'Quick Sauce', category: 'Dinner',
+      ingredients: ['1 can TOMATO purée', '2 cloves garlic'], steps: ['Simmer.'],
+    },
+    {
+      id: 'unrelated', title: 'Basil Chicken', category: 'Dinner',
+      ingredients: ['Fresh basil leaves', 'Chicken'], steps: ['Bake.'],
+      description: ['Serve with sliced tomatoes.'],
+    },
+  ];
+  const ids = filters => searchRecipes(slicedTomatoes, filters).map(r => r.id);
+
+  assert.deepEqual(ids({ ingredients: ['tomato'] }), ['tomato-slices', 'tomato-puree']);
+  assert.deepEqual(ids({ ingredients: ['TOMATO'] }), ['tomato-slices', 'tomato-puree']);
+  assert.deepEqual(ids({ ingredients: ['ToMaTo sLi'] }), ['tomato-slices']);
+  assert.deepEqual(ids({ ingredients: ['tomato', 'basil'] }), ['tomato-slices']);
+  assert.deepEqual(ids({ ingredients: ['TOMATO', 'BASIL'] }), ['tomato-slices']);
+  assert.deepEqual(ids({ ingredients: ['tomato', 'garlic'] }), ['tomato-puree']);
+  assert.deepEqual(ids({ ingredients: ['tomato', 'chicken'] }), []);
+});
