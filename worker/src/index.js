@@ -129,9 +129,38 @@ function imageData(value) {
   return value;
 }
 
+// Drafts can be incomplete. Keep their structured ingredient fields so an
+// unfinished measurement survives saving and reopening the editor.
+function optionalLines(value, name, limit, maxLength) {
+  if (!Array.isArray(value) || value.length > limit ||
+      value.some(item => typeof item !== 'string' || !item.trim() || item.length > maxLength)) {
+    throw new ApiError(`${name} must have at most ${limit} nonempty lines.`);
+  }
+  return value.map(item => item.trim());
+}
+
+function draftIngredientRows(value) {
+  if (!Array.isArray(value) || value.length < 1 || value.length > 60) {
+    throw new ApiError('Draft ingredients must contain 1–60 rows.');
+  }
+  return value.map(row => {
+    if (!row || typeof row !== 'object' || Array.isArray(row)) {
+      throw new ApiError('Invalid draft ingredient row.');
+    }
+    return {
+      amount: str(row.amount, 'Amount', 24),
+      unit: str(row.unit, 'Unit', 40),
+      customUnit: str(row.customUnit, 'Custom unit', 40),
+      name: str(row.name, 'Ingredient', 240),
+    };
+  });
+}
+
 function validateRecipe(body, previous = null) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) throw new ApiError('Invalid recipe.');
-  const title = str(body.title, 'Recipe name', 120, true);
+  if (body.draft !== undefined && typeof body.draft !== 'boolean') throw new ApiError('Draft must be true or false.');
+  const draft = body.draft === true;
+  const title = str(body.title, 'Recipe name', 120, !draft) || 'Untitled recipe';
   const slug = title.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 50).replace(/-$/, '') || 'recipe';
   const id = previous?.id || `${slug}-${crypto.randomUUID().slice(0, 8)}`;
@@ -145,17 +174,20 @@ function validateRecipe(body, previous = null) {
     id,
     title,
     description: descriptionParagraphs(body.description),
-    category: str(body.category, 'Category', 60, true),
+    category: str(body.category, 'Category', 60, !draft),
     prepMinutes: minutes(body.prepMinutes, 'Prep time'),
     cookMinutes: minutes(body.cookMinutes, 'Cook time'),
     servings: str(body.servings, 'Servings', 40),
-    ingredients: list(body.ingredients, 'Ingredients', 60, 250),
-    steps: list(body.steps, 'Directions', 35, 1000),
+    ingredients: draft ? optionalLines(body.ingredients, 'Ingredients', 60, 250) : list(body.ingredients, 'Ingredients', 60, 250),
+    steps: draft ? optionalLines(body.steps, 'Directions', 35, 1000) : list(body.steps, 'Directions', 35, 1000),
     image,
-    hidden: previous?.hidden === true,
+    draft,
+    hidden: previous?.draft === true && !draft ? false : previous?.hidden === true,
     createdAt: previous?.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
+  if (draft) recipe.ingredientDraftRows = draftIngredientRows(body.ingredientDraftRows);
+  else delete recipe.ingredientDraftRows;
   return { recipe, imageBase64: base64 };
 }
 
@@ -278,7 +310,7 @@ export default {
       if (isCollection && request.method === 'POST') {
         const { recipe, imageBase64 } = validateRecipe(await readBody(request));
         await savePhoto(env, recipe, imageBase64);
-        await writeFile(env, pathFor(recipe.id), encodeText(`${JSON.stringify(recipe, null, 2)}\n`), `Add recipe: ${recipe.title}`);
+        await writeFile(env, pathFor(recipe.id), encodeText(`${JSON.stringify(recipe, null, 2)}\n`), `${recipe.draft ? 'Save draft' : 'Add recipe'}: ${recipe.title}`);
         return json({ ...recipe }, 201, origin);
       }
       if (match) {
@@ -300,7 +332,7 @@ export default {
           ({ recipe, imageBase64 } = validateRecipe(body, previous));
         }
         await savePhoto(env, recipe, imageBase64);
-        const result = await writeFile(env, pathFor(id), encodeText(`${JSON.stringify(recipe, null, 2)}\n`), `${isVisibility ? (recipe.hidden ? 'Hide' : 'Unhide') : 'Edit'} recipe: ${recipe.title}`, sha);
+        const result = await writeFile(env, pathFor(id), encodeText(`${JSON.stringify(recipe, null, 2)}\n`), `${isVisibility ? (recipe.hidden ? 'Hide' : 'Unhide') : recipe.draft ? 'Save draft' : 'Edit'} recipe: ${recipe.title}`, sha);
         return json({ ...recipe, sha: result.content.sha }, 200, origin);
       }
       return json({ error: 'Method not allowed.' }, 405, origin);

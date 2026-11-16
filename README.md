@@ -6,11 +6,20 @@ A small, public recipe website hosted on **GitHub Pages**. It uses React/Vite fo
 
 1. Visitors read recipes at `https://jaruso.github.io/moms-cookbook/` — no backend needed for reading.
 2. Mom opens `https://jaruso.github.io/moms-cookbook/#/admin` and enters her one shared admin password.
-3. After signing in, Mom can add a recipe, edit an existing one, or hide/unhide a recipe in the **Manage recipes** list. Publishing a new recipe returns her to the public home page with a confirmation; new content appears after the Pages rebuild.
+3. After signing in, Mom can add a recipe, edit an existing one, save it as a draft, preview before publishing, or hide/unhide a published recipe in the **Manage recipes** list. Publishing returns her to the public home page with a confirmation; new content appears after the Pages rebuild.
 4. The Worker verifies the signed session and commits recipe JSON under `recipes/` and optional images under `public/images/`.
-5. A push to `main` triggers GitHub Actions to rebuild and redeploy GitHub Pages. The build excludes recipes with `"hidden": true` from the public JavaScript bundle.
+5. A push to `main` triggers GitHub Actions to rebuild and redeploy GitHub Pages. The build excludes recipes with `"hidden": true` **or** `"draft": true` from the public JavaScript bundle.
 
 There is **one admin password**, no registration and no automated password reset. Anyone can view recipes; only the password-holder can create or modify them. **Hiding is not privacy:** the GitHub repository is public, so hidden recipe JSON and images remain accessible through GitHub (and previously published image URLs may still work). Never store confidential content.
+
+## Printing, drafts, and preview
+
+- **Print recipe:** Every public recipe page has a `Print recipe` button that opens the browser print dialog. Print styling removes navigation, buttons, photos, and background colors so only the recipe text, ingredients, and directions are printed.
+- **Save as draft:** A separate `draft: true` JSON flag means the recipe is unfinished. Drafts are shown as **Draft** in Admin, excluded from the public Pages build, and are distinct from **Hidden** published recipes. The draft button works even if required fields are empty. Drafts preserve partial ingredient-entry rows in `ingredientDraftRows` so Mom can finish amounts and units later. On an existing published recipe, **Save as draft** removes it from the public website after rebuilding.
+- **Publish recipe:** Publishing validates the normal required fields, sets `draft: false`, and makes a former draft publicly visible. A published recipe can still be manually hidden separately with the Hide button.
+- **Preview:** The editor has a `Preview` button showing the current form in the normal recipe layout, including any newly selected photo. Preview does not call the backend or save anything. **Back to editing** keeps the form unchanged.
+
+An existing recipe without the new `draft` flag is treated as published, so no migration is required. The public GitHub repository still contains draft and hidden recipe JSON; those statuses control public *website* visibility, not repository confidentiality.
 
 ## Initial deployment
 
@@ -107,7 +116,7 @@ worker/wrangler.toml      Nonsecret Worker config
 .github/workflows/        GitHub Pages deployment
 ```
 
-Recipe fields: `id`, `title`, `description` (ordered array of paragraphs), `category`, `prepMinutes`, `cookMinutes`, `servings`, `ingredients` (array of strings), `steps` (array of strings), `image` (relative path or null), `hidden` (optional boolean, defaults to visible), `createdAt`, and `updatedAt` (UTC ISO timestamps). The sample is demonstration content, not an actual family recipe.
+Recipe fields: `id`, `title`, `description` (ordered array of paragraphs), `category`, `prepMinutes`, `cookMinutes`, `servings`, `ingredients` (array of strings), `steps` (array of strings), `image` (relative path or null), `draft` (optional boolean, defaults to false), `hidden` (optional boolean, defaults to visible), `ingredientDraftRows` (draft-only entry state), `createdAt`, and `updatedAt` (UTC ISO timestamps). The sample is demonstration content, not an actual family recipe.
 
 ### Optional description and paragraph sections
 
@@ -135,4 +144,5 @@ The admin editor uses ingredient rows with **Amount** (free-form, including frac
 - Uploading or replacing a photo creates one commit for the image and one for the recipe. If the second write fails, an unused image may remain; the editor reports the failure. Removed/replaced images are not automatically deleted from GitHub.
 - New posts become public when GitHub Actions completes the next Pages deployment, **not immediately** when the API responds.
 - Editing and hiding use authenticated API endpoints and current GitHub file SHA checks. Recipes are not deleted when hidden; public visibility changes after the next Pages build.
+- Drafts and hidden recipes are excluded from the public site, but remain visible in the public GitHub repository.
 - The admin list currently uses GitHub's Contents API, which returns at most 1,000 entries in a directory; split or index recipes if the collection ever grows beyond that.

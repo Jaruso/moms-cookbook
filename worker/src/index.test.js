@@ -126,3 +126,72 @@ test('description validation rejects malformed and oversized paragraphs', async 
     assert.equal(result.status, 400);
   }
 });
+
+test('save an incomplete draft, reopen it, then publish when complete', async t => {
+  const originalFetch = globalThis.fetch;
+  let stored = null;
+  let currentSha = sha1;
+  let writes = 0;
+  globalThis.fetch = async (input, options) => {
+    const url = new URL(input);
+    assert.equal(url.hostname, 'api.github.com');
+    if (options.method === 'PUT') {
+      const payload = JSON.parse(options.body);
+      if (stored) assert.equal(payload.sha, currentSha);
+      else assert.equal(payload.sha, undefined);
+      stored = JSON.parse(Buffer.from(payload.content, 'base64').toString('utf8'));
+      writes += 1;
+      currentSha = writes === 1 ? sha1 : sha2;
+      return Response.json({ content: { sha: currentSha } });
+    }
+    if (url.pathname.endsWith('/contents/' + stored?.id + '.json')) {
+      return Response.json({
+        type: 'file', encoding: 'base64', sha: currentSha,
+        content: Buffer.from(JSON.stringify(stored)).toString('base64'),
+      });
+    }
+    return Response.json({ message: 'Not found' }, { status: 404 });
+  };
+  t.after(() => { globalThis.fetch = originalFetch; });
+
+  const { token } = await read(await api('/api/login', 'POST', null, { password: 'test-password' }), 200);
+  const rows = [{ amount: '2', unit: 'cup', customUnit: '', name: '' }];
+  const draft = await read(await api('/api/recipes', 'POST', token, {
+    title: '', description: 'Family story so far.', draft: true, category: '',
+    prepMinutes: null, cookMinutes: null, servings: '',
+    ingredients: [], steps: [], ingredientDraftRows: rows,
+  }), 201);
+  assert.equal(draft.draft, true);
+  assert.equal(draft.title, 'Untitled recipe');
+  assert.equal(draft.hidden, false);
+  assert.deepEqual(draft.ingredients, []);
+  assert.deepEqual(draft.steps, []);
+  assert.deepEqual(draft.ingredientDraftRows, rows);
+
+  const incompletePublish = await api('/api/recipes/' + draft.id, 'PUT', token, {
+    ...draft, draft: false, sha: sha1,
+  });
+  assert.equal(incompletePublish.status, 400);
+  assert.equal(writes, 1);
+
+  // Publishing a draft must clear draft-only fields and make it visible.
+  stored.hidden = true; // Even a previously hidden draft becomes public on Publish.
+  const published = await read(await api('/api/recipes/' + draft.id, 'PUT', token, {
+    title: 'Family Pie', description: ['My mom made this.'], draft: false,
+    category: 'Desserts', prepMinutes: 10, cookMinutes: 30, servings: '6',
+    ingredients: ['2 cups flour'], steps: ['Mix the ingredients.'],
+    sha: sha1,
+  }), 200);
+  assert.equal(published.draft, false);
+  assert.equal(published.hidden, false);
+  assert.equal(published.title, 'Family Pie');
+  assert.equal(published.sha, sha2);
+  assert.equal('ingredientDraftRows' in published, false);
+  assert.deepEqual(stored.ingredients, ['2 cups flour']);
+});
+
+test('draft status must be a boolean', async () => {
+  const { token } = await read(await api('/api/login', 'POST', null, { password: 'test-password' }), 200);
+  const response = await api('/api/recipes', 'POST', token, { ...record, draft: 'true' });
+  assert.equal(response.status, 400);
+});

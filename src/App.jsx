@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import publicRecipes from './public-recipes.json';
-import { UNITS, makeIngredientRow, parseIngredientString, serializeIngredients } from './ingredients.js';
+import { UNITS, makeIngredientRow, parseIngredientString, serializeIngredient, serializeIngredients } from './ingredients.js';
 import { descriptionParagraphs, descriptionEditorText, descriptionPreview } from './description.js';
 
 const recipes = publicRecipes.slice().sort((a, b) => a.title.localeCompare(b.title));
@@ -8,7 +8,17 @@ const BASE = import.meta.env.BASE_URL;
 const API_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
 
 function picture(recipe) {
-  return recipe.image ? `${BASE}${recipe.image.replace(/^\//, '')}` : null;
+  return recipe.previewImage || (recipe.image ? `${BASE}${recipe.image.replace(/^\//, '')}` : null);
+}
+
+function ingredientPreview(rows) {
+  return rows.filter(row => row.name.trim()).map(row => {
+    try { return serializeIngredient(row); }
+    catch {
+      return [row.amount, row.unit === 'custom' ? row.customUnit : row.unit, row.name]
+        .filter(Boolean).join(' ').slice(0, 250);
+    }
+  });
 }
 
 // Each paragraph is its own content section. Empty insertion nodes are reserved
@@ -32,11 +42,14 @@ function RecipeDescription({ value }) {
   );
 }
 
-function RecipeDetail({ recipe, onBack }) {
+function RecipeDetail({ recipe, onBack, isPreview = false }) {
   return (
     <article className="recipe-detail">
       <div className="recipe-intro">
-        <button type="button" className="text-button" onClick={onBack}>← All recipes</button>
+        <div className="recipe-intro-actions">
+          <button type="button" className="text-button no-print" onClick={onBack}>{isPreview ? '← Back to editing' : '← All recipes'}</button>
+          <button type="button" className="print-recipe-button no-print" onClick={() => window.print()}>Print recipe</button>
+        </div>
         <h1>{recipe.title}</h1>
         <p className="recipe-meta">
           {[recipe.category, recipe.prepMinutes != null && `Prep ${recipe.prepMinutes} min`,
@@ -47,14 +60,14 @@ function RecipeDetail({ recipe, onBack }) {
       <RecipeDescription value={recipe.description} />
       {picture(recipe) && <img className="recipe-photo" src={picture(recipe)} alt={recipe.title} />}
       <div className="recipe-body">
-        <section className="ingredients">
+        {recipe.ingredients.length > 0 && <section className="ingredients">
           <h2>Ingredients</h2>
           <ul>{recipe.ingredients.map((item, i) => <li key={i}>{item}</li>)}</ul>
-        </section>
-        <section className="directions">
+        </section>}
+        {recipe.steps.length > 0 && <section className="directions">
           <h2>Directions</h2>
           <ol>{recipe.steps.map((step, i) => <li key={i}>{step}</li>)}</ol>
-        </section>
+        </section>}
       </div>
     </article>
   );
@@ -161,7 +174,9 @@ function Admin({ onPublished }) {
   const [password, setPassword] = useState('');
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [editing, setEditing] = useState(null); // null = list, 'new' = add, or { id, sha }
+  const [editing, setEditing] = useState(null); // null = list, 'new' = add, or { id, sha, draft }
+  const [preview, setPreview] = useState(false);
+  const [photoUrl, setPhotoUrl] = useState('');
   const [form, setForm] = useState(blankForm);
   const [photo, setPhoto] = useState(null);
   const [removePhoto, setRemovePhoto] = useState(false);
@@ -169,6 +184,13 @@ function Admin({ onPublished }) {
   const [busyId, setBusyId] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!photo) { setPhotoUrl(''); return; }
+    const url = URL.createObjectURL(photo);
+    setPhotoUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [photo]);
 
   function change(name, value) { setForm(previous => ({ ...previous, [name]: value })); }
   function changeIngredient(rowId, field, value) {
@@ -191,7 +213,7 @@ function Admin({ onPublished }) {
   }
   function logout() {
     sessionStorage.removeItem('cookbook_admin_token');
-    setToken(''); setPassword(''); setItems([]); setEditing(null);
+    setToken(''); setPassword(''); setItems([]); setEditing(null); setPreview(false);
   }
   function handleError(err) {
     if (err.status === 401) {
@@ -226,45 +248,56 @@ function Admin({ onPublished }) {
   }
 
   function addRecipe() {
-    setForm(blankForm()); setEditing('new'); setPhoto(null); setRemovePhoto(false);
+    setForm(blankForm()); setEditing('new'); setPhoto(null); setRemovePhoto(false); setPreview(false);
     setMessage(''); setError('');
   }
   function editRecipe(recipe) {
     setForm({
-      title: recipe.title || '', description: descriptionEditorText(recipe.description), category: recipe.category || '',
+      title: recipe.draft && recipe.title === 'Untitled recipe' ? '' : (recipe.title || ''), description: descriptionEditorText(recipe.description), category: recipe.category || '',
       prepMinutes: recipe.prepMinutes ?? '', cookMinutes: recipe.cookMinutes ?? '',
-      servings: recipe.servings || '', ingredients: recipe.ingredients.map(parseIngredientString),
+      servings: recipe.servings || '',
+      ingredients: Array.isArray(recipe.ingredientDraftRows) && recipe.ingredientDraftRows.length
+        ? recipe.ingredientDraftRows.map(row => makeIngredientRow(row))
+        : (recipe.ingredients.length ? recipe.ingredients.map(parseIngredientString) : [makeIngredientRow()]),
       steps: recipe.steps.join('\n'),
     });
-    setEditing({ id: recipe.id, sha: recipe.sha, image: recipe.image });
-    setPhoto(null); setRemovePhoto(false); setMessage(''); setError('');
+    setEditing({ id: recipe.id, sha: recipe.sha, image: recipe.image, draft: recipe.draft === true });
+    setPhoto(null); setRemovePhoto(false); setPreview(false); setMessage(''); setError('');
   }
 
   async function saveRecipe(event) {
     event.preventDefault();
+    if (pending) return;
+    const draft = event.nativeEvent.submitter?.value === 'draft';
     setPending(true); setError(''); setMessage('');
     try {
       const imageBase64 = photo ? await resizePhoto(photo) : null;
       const payload = {
         ...form,
-        // Send the textarea text; the Worker splits it into ordered paragraphs.
+        draft,
         description: form.description,
         prepMinutes: form.prepMinutes === '' ? null : Number(form.prepMinutes),
         cookMinutes: form.cookMinutes === '' ? null : Number(form.cookMinutes),
-        ingredients: serializeIngredients(form.ingredients),
+        ingredients: draft ? ingredientPreview(form.ingredients) : serializeIngredients(form.ingredients),
+        ingredientDraftRows: draft ? form.ingredients.map(({ amount, unit, customUnit, name }) => ({
+          amount, unit, customUnit, name,
+        })) : undefined,
         steps: form.steps.split('\n').map(line => line.trim()).filter(Boolean),
         imageBase64,
         removePhoto,
       };
       const isNew = editing === 'new';
+      const wasDraft = editing !== 'new' && editing.draft === true;
       const result = isNew
         ? await requestApi('/api/recipes', 'POST', token, payload)
         : await requestApi(`/api/recipes/${editing.id}`, 'PUT', token, { ...payload, sha: editing.sha });
-      setEditing(null); setPhoto(null); setRemovePhoto(false);
-      if (isNew) {
+      setEditing(null); setPhoto(null); setRemovePhoto(false); setPreview(false);
+      if (!draft && (isNew || wasDraft)) {
         onPublished('“' + result.title + '” was published. The website should update within a couple minutes.');
       } else {
-        setMessage('“' + result.title + '” was updated. The website should update within a couple minutes.');
+        setMessage(draft
+          ? '“' + result.title + '” was saved as a draft. Only you can see it in Admin; it is not on the website.'
+          : '“' + result.title + '” was updated. The website should update within a couple minutes.');
         await refresh();
       }
     } catch (err) { handleError(err); }
@@ -284,9 +317,22 @@ function Admin({ onPublished }) {
     } finally { setBusyId(''); }
   }
 
+  const previewRecipe = editing !== null ? {
+    title: form.title.trim() || 'Untitled recipe',
+    description: form.description,
+    category: form.category,
+    prepMinutes: form.prepMinutes === '' ? null : Number(form.prepMinutes),
+    cookMinutes: form.cookMinutes === '' ? null : Number(form.cookMinutes),
+    servings: form.servings,
+    ingredients: ingredientPreview(form.ingredients),
+    steps: form.steps.split('\n').map(line => line.trim()).filter(Boolean),
+    image: removePhoto ? null : (editing !== 'new' ? editing.image : null),
+    previewImage: photoUrl,
+  } : null;
+
   return (
     <main className="admin-page">
-      <h1>Admin</h1>
+      <h1 className="no-print">{preview ? 'Recipe preview' : 'Admin'}</h1>
       {!API_URL ? <p className="error">The backend URL is not configured. See the repository README.</p>
         : !token ? (
           <form onSubmit={login} className="editor login-form">
@@ -298,7 +344,12 @@ function Admin({ onPublished }) {
         ) : (
           <>
             <div className="admin-session"><span className="muted">Signed in</span><button className="text-button" type="button" onClick={logout}>Log out</button></div>
-            {editing === null ? (
+            {preview && editing !== null ? (
+              <div className="admin-preview">
+                <div className="preview-banner no-print"><strong>Preview only</strong> — nothing has been saved or published.</div>
+                <RecipeDetail recipe={previewRecipe} onBack={() => setPreview(false)} isPreview />
+              </div>
+            ) : editing === null ? (
               <>
                 <div className="admin-toolbar">
                   <h2>Manage recipes</h2>
@@ -310,13 +361,13 @@ function Admin({ onPublished }) {
                       <div className="admin-recipe" key={recipe.id}>
                         <div className="admin-recipe-info">
                           <strong>{recipe.title}</strong>
-                          <span className="muted">{recipe.category}{recipe.hidden ? ' · Hidden' : ' · Visible'}</span>
+                          <span className="muted">{[recipe.category, recipe.draft ? 'Draft' : recipe.hidden ? 'Hidden' : 'Visible'].filter(Boolean).join(' · ')}</span>
                         </div>
                         <div className="admin-actions">
-                          <button type="button" className="outline-button" disabled={busyId === recipe.id} onClick={() => editRecipe(recipe)}>Edit</button>
-                          <button type="button" className="outline-button" disabled={!!busyId} onClick={() => toggleHidden(recipe)}>
+                          <button type="button" className="outline-button" disabled={busyId === recipe.id} onClick={() => editRecipe(recipe)}>{recipe.draft ? 'Continue editing' : 'Edit'}</button>
+                          {!recipe.draft && <button type="button" className="outline-button" disabled={!!busyId} onClick={() => toggleHidden(recipe)}>
                             {busyId === recipe.id ? 'Saving…' : recipe.hidden ? 'Unhide' : 'Hide'}
-                          </button>
+                          </button>}
                         </div>
                       </div>
                     ))}
@@ -326,8 +377,8 @@ function Admin({ onPublished }) {
               </>
             ) : (
               <>
-                <button type="button" className="text-button back-to-admin" onClick={() => setEditing(null)}>← Manage recipes</button>
-                <h2>{editing === 'new' ? 'Add recipe' : 'Edit recipe'}</h2>
+                <button type="button" className="text-button back-to-admin" onClick={() => { setEditing(null); setPreview(false); }}>← Manage recipes</button>
+                <h2>{editing === 'new' ? 'Add recipe' : editing.draft ? 'Finish draft' : 'Edit recipe'}</h2>
                 <form onSubmit={saveRecipe} className="editor">
                   <label>Recipe name *<input value={form.title} onChange={e => change('title', e.target.value)} maxLength={120} required /></label>
                   <label>Description <span className="hint">(optional — separate paragraphs with a blank line)</span><textarea rows={8} value={form.description} onChange={e => change('description', e.target.value)} maxLength={12000} placeholder={"Tell the story behind this recipe.\n\nStart a new paragraph by leaving a blank line."} /></label>
@@ -384,9 +435,12 @@ function Admin({ onPublished }) {
                     <label className="remove-photo"><input type="checkbox" checked={removePhoto} onChange={e => setRemovePhoto(e.target.checked)} /> Remove existing photo</label>
                   )}
                   <div className="form-actions">
-                    <button type="submit" disabled={pending}>{pending ? 'Saving…' : editing === 'new' ? 'Publish recipe' : 'Save changes'}</button>
-                    <button type="button" className="outline-button" disabled={pending} onClick={() => setEditing(null)}>Cancel</button>
+                    <button type="submit" name="intent" value="publish" disabled={pending}>{pending ? 'Saving…' : editing === 'new' || editing.draft ? 'Publish recipe' : 'Save changes'}</button>
+                    <button type="submit" name="intent" value="draft" formNoValidate className="outline-button" disabled={pending}>Save as draft</button>
+                    <button type="button" className="outline-button" disabled={pending} onClick={() => { setPreview(true); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>Preview</button>
+                    <button type="button" className="text-button" disabled={pending} onClick={() => { setEditing(null); setPreview(false); }}>Cancel</button>
                   </div>
+                  <p className="hint draft-help">Save as draft keeps the recipe in Admin only, even if it was previously published. Publish recipe makes it visible to everyone.</p>
                 </form>
               </>
             )}

@@ -1,6 +1,7 @@
 import { readdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isPublicRecipe } from '../src/recipe-status.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const dir = join(root, 'recipes');
@@ -13,7 +14,7 @@ const recipes = await Promise.all(names.map(async name => {
   return recipe;
 }));
 
-// Hidden recipes remain editable in GitHub but do not enter the public JavaScript bundle.
-const visible = recipes.filter(recipe => recipe.hidden !== true);
+// Hidden recipes and drafts remain in GitHub for editing, but stay out of the public bundle.
+const visible = recipes.filter(isPublicRecipe);
 await writeFile(join(root, 'src', 'public-recipes.json'), JSON.stringify(visible, null, 2) + '\n');
 console.log(`Prepared ${visible.length} public recipe(s); ${recipes.length - visible.length} hidden.`);
