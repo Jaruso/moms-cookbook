@@ -37,6 +37,8 @@ jobs:
         run: node --test src/recipe-status.test.js
       - name: Test automatic recovery
         run: node --test src/recovery.test.js
+      - name: Test recipe search and filters
+        run: node --test src/recipe-search.test.js
       - name: Build
         env:
           VITE_API_URL: ${{ vars.VITE_API_URL || 'https://moms-cookbook-api.joseph-caruso-pc.workers.dev' }}

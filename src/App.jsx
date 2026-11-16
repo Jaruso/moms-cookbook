@@ -3,6 +3,7 @@ import publicRecipes from './public-recipes.json';
 import { UNITS, makeIngredientRow, parseIngredientString, serializeIngredient, serializeIngredients } from './ingredients.js';
 import { descriptionParagraphs, descriptionEditorText, descriptionPreview } from './description.js';
 import { recoveryKey, formSignature, createRecovery, readRecovery, writeRecovery, removeRecovery, listRecoveries } from './recovery.js';
+import { availableCategories, searchRecipes } from './recipe-search.js';
 
 const recipes = publicRecipes.slice().sort((a, b) => a.title.localeCompare(b.title));
 const BASE = import.meta.env.BASE_URL;
@@ -74,9 +75,17 @@ function RecipeDetail({ recipe, onBack, isPreview = false }) {
   );
 }
 
-function RecipeIndex({ onChoose, notice, onDismissNotice }) {
-  const [query, setQuery] = useState('');
-  const shown = recipes.filter(r => [r.title, r.category, descriptionParagraphs(r.description).join(' ')].join(' ').toLowerCase().includes(query.toLowerCase()));
+const EMPTY_SEARCH_FILTERS = { query: '', category: '', ingredient: '', maxMinutes: '' };
+const publicCategories = availableCategories(recipes);
+
+function RecipeIndex({
+  onChoose, notice, onDismissNotice, filters, onFilterChange, onClearFilters,
+  expanded, onExpandedChange,
+}) {
+  const shown = searchRecipes(recipes, filters);
+  const advancedCount = (filters.ingredient.trim() ? 1 : 0) + (filters.maxMinutes ? 1 : 0);
+  const hasFilters = Boolean(filters.query.trim() || filters.category || filters.ingredient.trim() || filters.maxMinutes);
+
   return (
     <main className="library-page">
       {notice && (
@@ -92,8 +101,56 @@ function RecipeIndex({ onChoose, notice, onDismissNotice }) {
           <h1>Recipes</h1>
         </div>
         <div className="search-wrap">
-          <label className="sr-only" htmlFor="recipe-search">Search recipes</label>
-          <input id="recipe-search" type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Search recipes..." />
+          <label className="sr-only" htmlFor="recipe-search">Search recipes or ingredients</label>
+          <input id="recipe-search" type="search" value={filters.query}
+            onChange={e => onFilterChange({ query: e.target.value })}
+            placeholder="Search recipes or ingredients..." />
+        </div>
+      </div>
+      <div className="recipe-filter-bar">
+        <div className="recipe-filter-controls">
+          <label className="recipe-category-select" htmlFor="recipe-category">
+            <span className="sr-only">Choose a recipe category</span>
+            <select id="recipe-category" value={filters.category}
+              onChange={e => onFilterChange({ category: e.target.value })}>
+              <option value="">All categories</option>
+              {publicCategories.map(category => (
+                <option key={category} value={category}>{category}</option>
+              ))}
+            </select>
+          </label>
+          <button type="button"
+            className={'outline-button more-filters-button' + (advancedCount ? ' has-active-filters' : '')}
+            aria-expanded={expanded} aria-controls="advanced-recipe-filters"
+            onClick={() => onExpandedChange(!expanded)}>
+            More filters{advancedCount ? ' (' + advancedCount + ')' : ''}
+            <span aria-hidden="true">{expanded ? '⌃' : '⌄'}</span>
+          </button>
+        </div>
+        <div className="recipe-filter-summary">
+          <span className="recipe-count" role="status" aria-live="polite">
+            {shown.length} {shown.length === 1 ? 'recipe' : 'recipes'}
+          </span>
+          {hasFilters && <button type="button" className="text-button clear-filters-button"
+            onClick={onClearFilters}>Clear filters</button>}
+        </div>
+      </div>
+      <div id="advanced-recipe-filters" className="advanced-recipe-filters" hidden={!expanded}>
+        <div className="advanced-filter-field">
+          <label htmlFor="recipe-ingredient-filter">Must include ingredient</label>
+          <input id="recipe-ingredient-filter" type="search" value={filters.ingredient}
+            placeholder="e.g. garlic"
+            onChange={e => onFilterChange({ ingredient: e.target.value })} />
+        </div>
+        <div className="advanced-filter-field">
+          <label htmlFor="recipe-time-filter">Total time (prep + cooking)</label>
+          <select id="recipe-time-filter" value={filters.maxMinutes}
+            onChange={e => onFilterChange({ maxMinutes: e.target.value })}>
+            <option value="">Any time</option>
+            <option value="30">30 minutes or less</option>
+            <option value="60">60 minutes or less</option>
+            <option value="90">90 minutes or less</option>
+          </select>
         </div>
       </div>
       <div className="recipe-list">
@@ -114,7 +171,12 @@ function RecipeIndex({ onChoose, notice, onDismissNotice }) {
             </span>
           </button>
         ))}
-        {!shown.length && <p className="empty-state">No recipes found.</p>}
+        {!shown.length && (
+          <div className="empty-state recipe-search-empty">
+            <p>No recipes found. Try another search or clear your filters.</p>
+            {hasFilters && <button type="button" className="outline-button" onClick={onClearFilters}>Clear filters</button>}
+          </div>
+        )}
       </div>
     </main>
   );
@@ -600,6 +662,17 @@ export default function App() {
   const [admin, setAdmin] = useState(() => window.location.hash.startsWith('#/admin'));
   const [selected, setSelected] = useState(null);
   const [notice, setNotice] = useState('');
+  // Keep search selections in App so opening a recipe doesn't reset the filters.
+  const [searchFilters, setSearchFilters] = useState(() => ({ ...EMPTY_SEARCH_FILTERS }));
+  const [advancedSearchOpen, setAdvancedSearchOpen] = useState(false);
+
+  function updateSearchFilters(patch) {
+    setSearchFilters(current => ({ ...current, ...patch }));
+  }
+  function clearSearchFilters() {
+    setSearchFilters({ ...EMPTY_SEARCH_FILTERS });
+    setAdvancedSearchOpen(false);
+  }
   useEffect(() => {
     const onHashChange = () => {
       const nextAdmin = window.location.hash.startsWith('#/admin');
@@ -634,7 +707,9 @@ export default function App() {
           <a href="#/admin" aria-current={admin ? 'page' : undefined}>Admin</a>
         </nav>
       </header>
-      {admin ? <Admin onPublished={handlePublished} registerLeaveGuard={registerLeaveGuard} /> : chosen ? <RecipeDetail recipe={chosen} onBack={() => setSelected(null)} /> : <RecipeIndex onChoose={setSelected} notice={notice} onDismissNotice={() => setNotice('')} />}
+      {admin ? <Admin onPublished={handlePublished} registerLeaveGuard={registerLeaveGuard} /> : chosen ? <RecipeDetail recipe={chosen} onBack={() => setSelected(null)} /> : <RecipeIndex onChoose={setSelected} notice={notice} onDismissNotice={() => setNotice('')}
+        filters={searchFilters} onFilterChange={updateSearchFilters} onClearFilters={clearSearchFilters}
+        expanded={advancedSearchOpen} onExpandedChange={setAdvancedSearchOpen} />}
     </div>
   );
 }

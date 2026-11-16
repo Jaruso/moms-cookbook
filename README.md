@@ -12,6 +12,14 @@ A small, public recipe website hosted on **GitHub Pages**. It uses React/Vite fo
 
 There is **one admin password**, no registration and no automated password reset. Anyone can view recipes; only the password-holder can create or modify them. **Hiding is not privacy:** the GitHub repository is public, so hidden recipe JSON and images remain accessible through GitHub (and previously published image URLs may still work). Never store confidential content.
 
+## Finding recipes
+
+The public home page offers a live **Search recipes or ingredients** field and a **single-category** dropdown, showing only categories that have published recipes. Old singular category values (for example, `Appetizer`) are grouped under the plural label (`Appetizers`).
+
+**More filters** is collapsed by default and offers an ingredient-only search and a total time limit (30, 60, or 90 minutes, calculated from prep + cook). Search covers titles, ingredient lists, descriptions, categories, and directions. Multiple words must all match somewhere in a recipe; matching ignores capitalization, accents, and punctuation. When searching, closer title matches rank first; otherwise recipes are alphabetical. All filters combine, the result count updates immediately, and **Clear filters** resets the search.
+
+Selected filters remain in memory when a visitor opens a recipe and returns. This is frontend-only: the existing public recipe bundle is searched locally, and drafts/hidden recipes remain excluded. Missing prep or cook times disqualify a recipe **only** if a time limit is selected. No account, cookies, network search, or changes to the admin editor are needed.
+
 ## Printing, drafts, and preview
 
 - **Print recipe:** Every public recipe page has a `Print recipe` button that opens the browser print dialog. Print styling removes navigation, buttons, photos, and background colors so only the recipe text, ingredients, and directions are printed.

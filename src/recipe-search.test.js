@@ -1,0 +1,94 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { normalizeSearch, canonicalCategory, availableCategories, totalRecipeMinutes, searchRecipes } from './recipe-search.js';
+
+const recipes = [
+  {
+    id: 'tomato-sauce', title: 'Sunday Tomato Sauce', category: 'Dinner',
+    description: ['An old family favorite.'], ingredients: ['2 tbsp olive oil', '3 cloves garlic', '28 oz tomatoes'],
+    steps: ['Simmer for thirty minutes.'], prepMinutes: 10, cookMinutes: 40,
+  },
+  {
+    id: 'toast', title: 'Sungold Toast', category: 'Appetizer',
+    description: ['Fresh garden tomatoes'], ingredients: ['2 cups sun-gold tomatoes', 'Sourdough bread'],
+    steps: ['Toast the bread.'], prepMinutes: 5, cookMinutes: 2,
+  },
+  {
+    id: 'chicken', title: 'Chicken in Garlic Sauce', category: 'Dinner',
+    description: ['Weeknight dinner'], ingredients: ['Chicken breast', '2 cloves garlic'],
+    steps: ['Roast in the oven.'], prepMinutes: 10, cookMinutes: 20,
+  },
+  {
+    id: 'missing-time', title: 'Family Pie', category: 'Desserts',
+    description: ['Mom’s special occasion treat'], ingredients: ['Apples'],
+    steps: ['Bake until golden.'], prepMinutes: null, cookMinutes: 40,
+  },
+  {
+    id: 'hidden', title: 'Secret Chicken', category: 'Dinner',
+    ingredients: ['Chicken'], steps: ['Bake'], prepMinutes: 5, cookMinutes: 15,
+    hidden: true,
+  },
+  {
+    id: 'draft', title: 'Draft Cake', category: 'Desserts',
+    ingredients: ['Flour'], steps: ['Mix'], prepMinutes: 5, cookMinutes: 15,
+    draft: true,
+  },
+];
+
+test('normalization is case, accent, and punctuation insensitive', () => {
+  assert.equal(normalizeSearch('  Crème-Brûlée! '), 'creme brulee');
+  assert.equal(normalizeSearch('Mom’s  Sauce'), 'moms sauce');
+  assert.equal(normalizeSearch(null), '');
+});
+
+test('category dropdown shows only published categories and merges older singular labels', () => {
+  assert.deepEqual(availableCategories(recipes), ['Appetizers', 'Desserts', 'Dinner']);
+  assert.equal(canonicalCategory('Appetizer'), 'Appetizers');
+  assert.equal(canonicalCategory('side dish'), 'Side Dishes');
+  assert.equal(canonicalCategory('Sauces & Condiments'), 'Sauces & Condiments');
+});
+
+test('search covers titles, ingredients, descriptions, directions and multiple terms', () => {
+  assert.deepEqual(searchRecipes(recipes, { query: 'tomato' }).map(r => r.id), ['tomato-sauce', 'toast']);
+  assert.deepEqual(searchRecipes(recipes, { query: 'chicken roast' }).map(r => r.id), ['chicken']);
+  assert.deepEqual(searchRecipes(recipes, { query: 'special occasion' }).map(r => r.id), ['missing-time']);
+  assert.deepEqual(searchRecipes(recipes, { query: 'simmer' }).map(r => r.id), ['tomato-sauce']);
+  assert.deepEqual(searchRecipes(recipes, { query: 'appetizer' }).map(r => r.id), ['toast']);
+  assert.deepEqual(searchRecipes(recipes, { query: 'fudge' }), []);
+});
+
+test('category restricts to one normalized category', () => {
+  assert.deepEqual(searchRecipes(recipes, { category: 'Appetizers' }).map(r => r.id), ['toast']);
+  assert.deepEqual(searchRecipes(recipes, { query: 'tomato', category: 'Dinner' }).map(r => r.id), ['tomato-sauce']);
+  assert.deepEqual(searchRecipes(recipes, { category: 'Desserts' }).map(r => r.id), ['missing-time']);
+});
+
+test('ingredient filter only checks ingredients, combining with main search', () => {
+  assert.deepEqual(searchRecipes(recipes, { ingredient: 'garlic' }).map(r => r.id), ['chicken', 'tomato-sauce']);
+  assert.deepEqual(searchRecipes(recipes, { query: 'simmer', ingredient: 'garlic' }).map(r => r.id), ['tomato-sauce']);
+  assert.deepEqual(searchRecipes(recipes, { ingredient: 'roast' }), []);
+  assert.deepEqual(searchRecipes(recipes, { ingredient: 'chicken garlic' }).map(r => r.id), ['chicken']);
+});
+
+test('time uses prep plus cook, includes boundary, and excludes missing times only if filtered', () => {
+  assert.equal(totalRecipeMinutes(recipes[0]), 50);
+  assert.equal(totalRecipeMinutes(recipes[3]), null);
+  assert.deepEqual(searchRecipes(recipes, { maxMinutes: 30 }).map(r => r.id), ['chicken', 'toast']);
+  assert.deepEqual(searchRecipes(recipes, { maxMinutes: 60 }).map(r => r.id), ['chicken', 'tomato-sauce', 'toast']);
+  assert.ok(searchRecipes(recipes).some(r => r.id === 'missing-time'));
+});
+
+test('hidden and draft recipes never enter results, even if passed in by mistake', () => {
+  const result = searchRecipes(recipes);
+  assert.equal(result.length, 4);
+  assert.equal(result.some(recipe => recipe.hidden || recipe.draft), false);
+  assert.deepEqual(searchRecipes(recipes, { query: 'secret' }), []);
+});
+
+test('relevance puts full title match ahead of weaker ingredient matches', () => {
+  const titles = [
+    { title: 'Garlic', ingredients: ['salt'], steps: [], category: 'Dinner' },
+    { title: 'Soup', ingredients: ['garlic cloves'], steps: [], category: 'Dinner' },
+  ];
+  assert.equal(searchRecipes(titles, { query: 'garlic' })[0].title, 'Garlic');
+});
