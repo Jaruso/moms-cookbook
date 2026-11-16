@@ -262,9 +262,9 @@ function Admin({ onPublished }) {
         : await requestApi(`/api/recipes/${editing.id}`, 'PUT', token, { ...payload, sha: editing.sha });
       setEditing(null); setPhoto(null); setRemovePhoto(false);
       if (isNew) {
-        onPublished('“' + result.title + '” was published. It will appear here once GitHub Pages finishes rebuilding; refresh the page to see it.');
+        onPublished('“' + result.title + '” was published. The website should update within a couple minutes.');
       } else {
-        setMessage('“' + result.title + '” was updated. The public site will reflect it after GitHub Pages rebuilds.');
+        setMessage('“' + result.title + '” was updated. The website should update within a couple minutes.');
         await refresh();
       }
     } catch (err) { handleError(err); }
@@ -277,7 +277,7 @@ function Admin({ onPublished }) {
       const result = await requestApi(`/api/recipes/${recipe.id}/visibility`, 'PATCH', token,
         { hidden: recipe.hidden !== true, sha: recipe.sha });
       setItems(previous => previous.map(item => item.id === result.id ? result : item));
-      setMessage(`“${result.title}” is now ${result.hidden ? 'hidden' : 'visible'}. GitHub Pages will update after rebuilding.`);
+      setMessage(`“${result.title}” is now ${result.hidden ? 'hidden' : 'visible'}. The website should update within a couple minutes.`);
     } catch (err) {
       handleError(err);
       if (err.status === 409) await refresh();
