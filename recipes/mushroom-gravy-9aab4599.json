@@ -1,0 +1,24 @@
+{
+  "id": "mushroom-gravy-9aab4599",
+  "title": "mushroom gravy",
+  "description": [],
+  "category": "",
+  "prepMinutes": null,
+  "cookMinutes": null,
+  "servings": "",
+  "ingredients": [],
+  "steps": [],
+  "image": null,
+  "draft": true,
+  "hidden": false,
+  "createdAt": "2026-11-16T19:35:28.555Z",
+  "updatedAt": "2026-11-16T19:35:28.555Z",
+  "ingredientDraftRows": [
+    {
+      "amount": "",
+      "unit": "",
+      "customUnit": "",
+      "name": ""
+    }
+  ]
+}
