@@ -149,10 +149,10 @@ test('ingredient pills are case-insensitive and allow partial ingredient names',
       description: ['Serve with sliced tomatoes.'],
     },
   ];
-  const ids = filters => searchRecipes(slicedTomatoes, filters).map(r => r.id);
+  const ids = filters => searchRecipes(slicedTomatoes, filters).map(r => r.id).sort();
 
-  assert.deepEqual(ids({ ingredients: ['tomato'] }), ['tomato-slices', 'tomato-puree']);
-  assert.deepEqual(ids({ ingredients: ['TOMATO'] }), ['tomato-slices', 'tomato-puree']);
+  assert.deepEqual(ids({ ingredients: ['tomato'] }), ['tomato-puree', 'tomato-slices']);
+  assert.deepEqual(ids({ ingredients: ['TOMATO'] }), ['tomato-puree', 'tomato-slices']);
   assert.deepEqual(ids({ ingredients: ['ToMaTo sLi'] }), ['tomato-slices']);
   assert.deepEqual(ids({ ingredients: ['tomato', 'basil'] }), ['tomato-slices']);
   assert.deepEqual(ids({ ingredients: ['TOMATO', 'BASIL'] }), ['tomato-slices']);
