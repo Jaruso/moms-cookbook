@@ -52,16 +52,27 @@ h3 { font-size: 1.4rem; margin: 0 0 10px; }
   text-decoration: none;
 }
 .brand:hover { color: var(--accent-hover); }
-nav { display: flex; align-items: center; gap: 26px; }
-nav a { color: var(--ink); font-size: .96rem; font-weight: 600; text-decoration: none; }
-nav a:hover { color: var(--accent-hover); }
-nav a[href="#/admin"] {
-  border: 1px solid #cdd8cc;
+.site-header nav { display: flex; align-items: center; gap: 8px; }
+.site-header nav a {
+  color: var(--ink);
+  font-size: .96rem;
+  font-weight: 600;
+  text-decoration: none;
+  border: 1px solid transparent;
   border-radius: 99px;
   padding: 8px 18px;
-  background: #edf1e9;
+  transition: background-color .15s, border-color .15s, color .15s;
 }
-nav a[href="#/admin"]:hover { border-color: var(--forest); background: #e5ece2; }
+.site-header nav a:hover:not([aria-current="page"]) {
+  color: var(--forest);
+  background: #e9f0e7;
+}
+.site-header nav a[aria-current="page"] {
+  color: var(--forest);
+  border-color: #cdd8cc;
+  background: #e4ede2;
+}
+.site-header nav a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 main, article { padding-top: clamp(28px, 4vw, 56px); }
 
 /* Public collection */
@@ -259,9 +270,9 @@ button:disabled { opacity: .55; cursor: not-allowed; }
   .shell { width: calc(100% - 32px); padding-bottom: 60px; }
   .site-header { padding: 19px 0; gap: 12px; }
   .brand { font-size: 1.5rem; }
-  nav { gap: 12px; }
+  .site-header nav { gap: 4px; }
   nav a { font-size: .88rem; }
-  nav a[href="#/admin"] { padding: 7px 12px; }
+  .site-header nav a { padding: 7px 12px; }
   .library-heading { padding: 26px 22px; border-radius: 16px; }
   .recipe-list { margin-top: 22px; }
   .recipe-card-body { padding: 23px; }

@@ -421,7 +421,10 @@ export default function App() {
     <div className="shell">
       <header className="site-header">
         <a className="brand" href={BASE}>Mom's Cookbook</a>
-        <nav><a href={BASE}>Recipes</a><a href="#/admin">Admin</a></nav>
+        <nav aria-label="Main navigation">
+          <a href={BASE} aria-current={admin ? undefined : 'page'}>Recipes</a>
+          <a href="#/admin" aria-current={admin ? 'page' : undefined}>Admin</a>
+        </nav>
       </header>
       {admin ? <Admin onPublished={handlePublished} /> : chosen ? <RecipeDetail recipe={chosen} onBack={() => setSelected(null)} /> : <RecipeIndex onChoose={setSelected} notice={notice} onDismissNotice={() => setNotice('')} />}
     </div>
