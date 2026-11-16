@@ -296,7 +296,7 @@ function Admin({ onPublished }) {
         onPublished('“' + result.title + '” was published. The website should update within a couple minutes.');
       } else {
         setMessage(draft
-          ? '“' + result.title + '” was saved as a draft. Only you can see it in Admin; it is not on the website.'
+          ? '“' + result.title + '” was saved as a draft. It is not on the website. You can find it in Admin.'
           : '“' + result.title + '” was updated. The website should update within a couple minutes.');
         await refresh();
       }
