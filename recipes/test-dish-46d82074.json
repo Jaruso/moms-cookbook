@@ -15,5 +15,7 @@
     "do the thing"
   ],
   "image": null,
-  "createdAt": "2026-11-16T15:09:47.162Z"
+  "createdAt": "2026-11-16T15:09:47.162Z",
+  "hidden": true,
+  "updatedAt": "2026-11-16T17:02:58.306Z"
 }
