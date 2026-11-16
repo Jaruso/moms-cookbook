@@ -8,3 +8,6 @@ worker/.dev.vars.*
 worker/node_modules/
 .wrangler/
 .DS_Store
+
+# Generated from visible recipes before each build
+src/public-recipes.json

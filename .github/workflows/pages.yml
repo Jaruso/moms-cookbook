@@ -27,6 +27,8 @@ jobs:
           node-version: '22'
       - name: Install
         run: npm install --no-audit --no-fund
+      - name: Test Worker API
+        run: node --test worker/src/index.test.js
       - name: Build
         env:
           VITE_API_URL: ${{ vars.VITE_API_URL || 'https://moms-cookbook-api.joseph-caruso-pc.workers.dev' }}
