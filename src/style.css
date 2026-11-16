@@ -218,7 +218,7 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .publish-notice p { margin: 0; flex: 1; }
 .notice-check { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: #315e42; color: white; flex-shrink: 0; font-weight: 700; }
 .publish-notice button { border: none; background: transparent; color: inherit; font-size: 1.5rem; line-height: 1; cursor: pointer; }
-.admin-page { max-width: 1220px; }
+.admin-page { width: 100%; max-width: 1220px; margin-inline: auto; }
 .admin-page > h1 { margin-bottom: 24px; }
 .login-form { max-width: 470px; background: var(--surface); padding: 32px; border-radius: 16px; border: 1px solid var(--line); box-shadow: 0 5px 24px rgba(31, 50, 37, .05); }
 .admin-session { display: flex; justify-content: flex-end; gap: 20px; align-items: center; margin: -14px 0 32px; font-size: .9rem; }
