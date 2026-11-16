@@ -247,7 +247,8 @@ function Admin({ onPublished }) {
       const imageBase64 = photo ? await resizePhoto(photo) : null;
       const payload = {
         ...form,
-        description: descriptionParagraphs(form.description),
+        // Send the textarea text; the Worker splits it into ordered paragraphs.
+        description: form.description,
         prepMinutes: form.prepMinutes === '' ? null : Number(form.prepMinutes),
         cookMinutes: form.cookMinutes === '' ? null : Number(form.cookMinutes),
         ingredients: serializeIngredients(form.ingredients),
