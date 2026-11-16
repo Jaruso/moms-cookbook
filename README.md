@@ -91,6 +91,16 @@ The Worker exposes authenticated `GET /api/recipes` (manage list), `PUT /api/rec
 Changes to `worker/src/index.js` (including description validation) need to reach Cloudflare through the Worker deployment workflow. If its GitHub secrets are not configured, run `cd worker && npx wrangler deploy` locally after pulling the latest changes.
 
 
+## Automatic local recovery (no cookies or backend changes)
+
+While Mom edits a recipe, the browser saves her text and ingredient rows to **localStorage** after about one second of inactivity. Each existing recipe gets a separate recovery key, and there is one recovery slot for a new recipe. The editor shows **Saved on this device**, or a warning if browser storage is unavailable.
+
+- After closing the tab, returning to **Admin** shows unfinished work saved on that browser. Selecting it opens a **Continue editing / Start fresh** choice. Choosing Continue restores the form without contacting GitHub.
+- Clicking **Cancel**, **Manage recipes**, **Log out**, or switching to **Recipes** with unsaved edits requests confirmation. Closing or refreshing the tab triggers the browser's native unsaved-changes warning. The most recent form is saved before leaving.
+- **Preview** is not treated as abandoning the editor. Successful **Publish recipe**, **Save changes**, and **Save as draft** clear that recipe's local recovery copy; failed submissions keep it.
+- Photos, passwords, and login tokens are **not** saved in localStorage. If Mom selected a new photo but left before submitting, she must select it again after recovering. The existing saved photo is unaffected.
+- Recovery works only in the **same browser/device** while site data remains available; it is not a replacement for GitHub-backed **Save as draft**. Browser private mode or blocked storage may disable it.
+
 ## Local development
 
 ```bash
