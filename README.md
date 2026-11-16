@@ -1,113 +1,179 @@
 # Mom's Cookbook
 
-A small, public recipe website hosted on **GitHub Pages**. It uses React/Vite for the static frontend and a **Cloudflare Worker** for a password-protected admin area. The Worker adds or edits JSON recipes, changes their visibility, and uploads optional images to GitHub; GitHub Actions rebuilds the site automatically.
+A static React/Vite recipe site on **GitHub Pages**, with a password-protected **Cloudflare Worker** for authoring. GitHub is the data store: each recipe is a JSON file on `main`, and photos live in the repository. There is no database or application server for public reads.
 
-## How it works
+- **Site:** https://jaruso.github.io/moms-cookbook/
+- **Admin:** https://jaruso.github.io/moms-cookbook/#/admin
+- **Worker:** https://moms-cookbook-api.joseph-caruso-pc.workers.dev
 
-1. Visitors read recipes at `https://jaruso.github.io/moms-cookbook/` — no backend needed for reading.
-2. Mom opens `https://jaruso.github.io/moms-cookbook/#/admin` and enters her one shared admin password.
-3. After signing in, Mom can add a recipe, edit an existing one, save it as a draft, preview before publishing, or hide/unhide a published recipe in the **Manage recipes** list. Publishing returns her to the public home page with a confirmation; new content appears after the Pages rebuild.
-4. The Worker verifies the signed session and commits recipe JSON under `recipes/` and optional images under `public/images/`.
-5. A push to `main` triggers GitHub Actions to rebuild and redeploy GitHub Pages. The build excludes recipes with `"hidden": true` **or** `"draft": true` from the public JavaScript bundle.
+## Architecture
 
-There is **one admin password**, no registration and no automated password reset. Anyone can view recipes; only the password-holder can create or modify them. **Hiding is not privacy:** the GitHub repository is public, so hidden recipe JSON and images remain accessible through GitHub (and previously published image URLs may still work). Never store confidential content.
+```mermaid
+flowchart LR
+    Browser["Browser<br/>React / Vite"] -->|"Static assets & published recipes"| Pages["GitHub Pages"]
+    Browser -->|"Admin: HTTPS /api/*"| Worker["Cloudflare Worker"]
+    Worker -->|"GitHub Contents API<br/>GITHUB_TOKEN"| Repo[("GitHub main<br/>recipes/*.json<br/>public/images/*")]
+    Repo -->|"Push to main"| CI["GitHub Actions<br/>Pages workflow"]
+    CI -->|"Build filtered bundle + deploy dist/"| Pages
+```
 
-## Finding recipes
+**Public reads:** `scripts/build-recipes.mjs` runs before each Vite build, reads `recipes/*.json`, and generates `src/public-recipes.json` with only records where `draft !== true` and `hidden !== true`. The React client searches and filters this bundled data locally—no API call for browsing, category selection, ingredient pills, or cooking-time filters. A recipe's print button uses browser print styles.
 
-The public home page uses a compact, single-row search toolbar (without a large page-title banner) with a live **Search recipes or ingredients** field and a **single-category** dropdown, showing only categories that have published recipes. Old singular category values (for example, `Appetizer`) are grouped under the plural label (`Appetizers`).
+**Admin writes:** The frontend signs in through the Worker, then calls authenticated endpoints to create/edit recipes or toggle visibility. The Worker validates requests, resizes nothing (the frontend resizes photos to JPEG), and uses a fine-grained GitHub token to commit recipe JSON and optional images to `main`. Each resulting push causes the Pages workflow to rebuild; API success does **not** mean the public site has already updated.
 
-**More filters** is collapsed by default and offers a multi-ingredient pill selector and a total time limit (30, 60, or 90 minutes, calculated from prep + cook). Visitors type an ingredient and press **Enter** or **Add** to create a pill, can remove each pill with **×**, and only see recipes containing **every** selected ingredient. Each pill matches an ingredient entry, ignoring capitalization, accents, and punctuation. Duplicate ingredients are not added. Search covers titles, ingredient lists, descriptions, categories, and directions. Multiple words must all match somewhere in a recipe; matching ignores capitalization, accents, and punctuation. When searching, closer title matches rank first; otherwise recipes are alphabetical. All filters combine, the result count updates immediately, and **Clear filters** resets the search.
+**Client state:** A signed admin session token is kept in `sessionStorage`. Unsaved form text and ingredient rows are backed up in `localStorage` after ~1 second of inactivity, with navigation warnings and recovery prompts. Local recovery is device/browser-specific and **does not** store passwords, bearer tokens, or unsaved photo files. Saving a GitHub-backed draft is separate from local recovery.
 
-Selected filters remain in memory when a visitor opens a recipe and returns. This is frontend-only: the existing public recipe bundle is searched locally, and drafts/hidden recipes remain excluded. Missing prep or cook times disqualify a recipe **only** if a time limit is selected. No account, cookies, network search, or changes to the admin editor are needed.
+## Data model
 
-## Printing, drafts, and preview
+- `recipes/<id>.json` is the source of truth; `id` is generated from the title plus a short random suffix and is stable across edits.
+- Common fields: `id`, `title`, `description` (ordered string paragraphs), `category`, `prepMinutes`, `cookMinutes`, `servings`, `ingredients` (string array), `steps` (string array), `image` (relative path or `null`), `draft`, `hidden`, `createdAt`, and `updatedAt` (ISO UTC).
+- `draft: true` allows incomplete entries. `ingredientDraftRows` retains unfinished structured amount/unit/name inputs while editing. Publishing removes that draft-only field and sets `draft: false`.
+- `hidden: true` hides an otherwise published recipe. Older records without `draft` or `hidden` remain visible.
+- `description` accepts textarea text or an array on input; the Worker normalizes it to ordered paragraphs. Existing single-string descriptions remain readable.
+- Images are stored at `public/images/...jpg` and referenced in JSON as `images/...jpg`.
 
-- **Print recipe:** Every public recipe page has a `Print recipe` button that opens the browser print dialog. Print styling removes navigation, buttons, photos, and background colors so only the recipe text, ingredients, and directions are printed.
-- **Save as draft:** A separate `draft: true` JSON flag means the recipe is unfinished. Drafts are shown as **Draft** in Admin, excluded from the public Pages build, and are distinct from **Hidden** published recipes. The draft button works even if required fields are empty. Drafts preserve partial ingredient-entry rows in `ingredientDraftRows` so Mom can finish amounts and units later. On an existing published recipe, **Save as draft** removes it from the public website after rebuilding.
-- **Publish recipe:** Publishing validates the normal required fields, sets `draft: false`, and makes a former draft publicly visible. A published recipe can still be manually hidden separately with the Hide button.
-- **Preview:** The editor has a `Preview` button showing the current form in the normal recipe layout, including any newly selected photo. Preview does not call the backend or save anything. **Back to editing** keeps the form unchanged.
+**Visibility is not privacy.** The GitHub repository is public, so hidden/draft JSON and uploaded photos can be accessed there. The build only excludes them from the public **site bundle**; previously published photo URLs may remain available.
 
-An existing recipe without the new `draft` flag is treated as published, so no migration is required. The public GitHub repository still contains draft and hidden recipe JSON; those statuses control public *website* visibility, not repository confidentiality.
+## Worker API contract
 
-## Initial deployment
+Base URL: `https://moms-cookbook-api.joseph-caruso-pc.workers.dev`. Requests and responses use JSON. All endpoints except health and login require `Authorization: Bearer <token>`; tokens are HMAC-signed with `SESSION_SECRET` and expire after **4 hours**.
 
-### 1. GitHub Pages
+| Method | Endpoint | Request | Success response |
+| --- | --- | --- | --- |
+| `GET` | `/api/health` | None; public | `200 {"ok":true}` |
+| `POST` | `/api/login` | `{"password":"..."}` | `200 {"token":"..."}` |
+| `GET` | `/api/recipes` | Bearer token | `200 {"recipes":[...]}`; includes hidden/draft records and each file's `sha` |
+| `POST` | `/api/recipes` | Recipe payload + Bearer token | `201` created recipe |
+| `PUT` | `/api/recipes/:id` | Recipe payload **and current `sha`** | `200` saved recipe + new `sha` |
+| `PATCH` | `/api/recipes/:id/visibility` | `{"hidden":true,"sha":"<40-char SHA>"}` | `200` updated recipe + new `sha` |
 
-Open **Settings → Pages → Build and deployment**, choose **GitHub Actions** as the source. The workflow in `.github/workflows/pages.yml` builds and publishes the site on pushes to `main`.
+`OPTIONS` supports browser CORS preflight. There is no delete endpoint and no public recipe-list API; visitor pages use the static bundle.
 
-### 2. Cloudflare Worker
+### Create / update payload
 
-Install Node.js 22+, then from the repository root:
+```json
+{
+  "title": "Sunday Sauce",
+  "description": "A family favorite.\n\nServe with pasta.",
+  "category": "Dinner",
+  "prepMinutes": 15,
+  "cookMinutes": 45,
+  "servings": "4",
+  "ingredients": ["2 tbsp olive oil", "3 cloves garlic"],
+  "steps": ["Warm the oil.", "Add garlic and simmer."],
+  "draft": false,
+  "imageBase64": null,
+  "removePhoto": false
+}
+```
+
+For `PUT`, supply the same fields **plus** `"sha": "<latest GitHub file SHA>"` from `GET /api/recipes`. A mismatched SHA returns **409 Conflict** to prevent overwriting newer changes. For new recipes, the server generates `id` and timestamps; the UI refreshes the admin list to obtain the new SHA when needed.
+
+**Validation and optional fields:**
+
+| Field | Constraint |
+| --- | --- |
+| `title` / `category` | Required for publishing; max 120 / 60 characters. |
+| `ingredients` / `steps` | For publishing, 1–60 ingredients (250 characters each) and 1–35 directions (1,000 characters each). Arrays of strings. |
+| `description` | Optional; at most 30 paragraphs, 2,000 characters per paragraph, 12,000 total. |
+| `prepMinutes` / `cookMinutes` | Integer 0–999 or `null`. `servings` optional, max 40 characters. |
+| `draft` | Boolean. Drafts can have blank title/category and empty ingredient/direction arrays; include `ingredientDraftRows` (1–60 objects containing `amount`, `unit`, `customUnit`, `name`). |
+| `imageBase64` / `removePhoto` | Optional base64 JPEG under 1 MB, **or** `removePhoto: true`, never both. No photo field is required when keeping the existing image. |
+
+Ingredient rows are serialized to strings (such as `"2 cups flour"`) for published recipes; the client preserves older ingredient wording when editing. The frontend converts selected photos to JPEG before upload.
+
+Errors are JSON `{"error":"..."}`, with common statuses **400** (validation), **401** (missing/invalid login or bearer token), **403** (disallowed origin), **404** (not found), **409** (stale SHA), **413** (oversized request), **502** (GitHub upstream error), and **503** (missing Worker runtime secrets). Non-health requests with unsupported methods may return **405**.
+
+CORS origins are explicitly allowed in `worker/src/index.js`: `https://jaruso.github.io` and `http://localhost:5173`. CORS does not replace authentication.
+
+## CI/CD
+
+```mermaid
+flowchart TD
+    Push["Push to main<br/>(including Worker recipe commits)"]
+    Push --> Pages["pages.yml<br/>Node 22 → install → Worker/UI tests → Vite build"]
+    Pages --> Site["GitHub Pages<br/>dist/"]
+    Push --> Paths{"worker/** or<br/>deploy-worker.yml changed?"}
+    Paths -->|Yes| Worker["deploy-worker.yml<br/>Worker tests → credentials check → Wrangler deploy"]
+    Worker --> Cloudflare["Cloudflare Worker"]
+    Paths -->|No| Skip["No Worker deploy"]
+```
+
+| Workflow | Trigger | Actions |
+| --- | --- | --- |
+| [`pages.yml`](.github/workflows/pages.yml) | **Every** push to `main`; manual `workflow_dispatch` | Node 22, `npm install`, Worker + ingredient + description + visibility + recovery + search tests, `npm run build`, upload `dist/`, deploy to GitHub Pages. |
+| [`deploy-worker.yml`](.github/workflows/deploy-worker.yml) | Push to `main` changing `worker/**` or the Worker workflow; manual `workflow_dispatch` | Node 22, Worker API tests, credential check, `cloudflare/wrangler-action@v4` with `workingDirectory: worker` and `command: deploy`. |
+
+The Worker workflow does **not** rerun when only `recipes/`, `src/`, or documentation changes. The Pages workflow runs on these commits. Neither workflow injects Worker runtime secrets: they must already exist in Cloudflare.
+
+## Configuration and secrets
+
+### GitHub repository → Settings → Secrets and variables → Actions
+
+| Name | Type | Used by | Purpose |
+| --- | --- | --- | --- |
+| `VITE_API_URL` | **Variable** (public) | Pages build | Worker HTTPS base URL, without trailing slash. Optional with current `pages.yml`: it falls back to the production Worker URL above. |
+| `CLOUDFLARE_ACCOUNT_ID` | **Secret** | Worker deploy workflow | Cloudflare account ID for automated deployment. |
+| `CLOUDFLARE_API_TOKEN` | **Secret** | Worker deploy workflow | Cloudflare API token with Workers deployment permissions in the target account. |
+
+`VITE_API_URL` is compiled into the browser bundle and is **not a secret**. The GitHub deployment secrets are needed only when running the Cloudflare workflow, not for manual Wrangler deployment.
+
+### Cloudflare Worker → runtime bindings
+
+| Name | Storage | Purpose |
+| --- | --- | --- |
+| `ADMIN_PASSWORD` | **Worker secret** | Shared admin login password; no email-based reset. |
+| `SESSION_SECRET` | **Worker secret** | Key for HMAC signing/validating 4-hour session tokens; use an independent random value. |
+| `GITHUB_TOKEN` | **Worker secret** | Fine-grained GitHub PAT scoped to `Jaruso/moms-cookbook` with **Contents: Read and write**; used for recipe and image commits. |
+| `REPO_OWNER` / `REPO_NAME` | Nonsecret `[vars]` in `worker/wrangler.toml` | `Jaruso` / `moms-cookbook`. |
+
+Configure production Worker secrets from `worker/` (Wrangler prompts for each value; do not commit secrets):
 
 ```bash
 cd worker
 npx wrangler login
-npx wrangler deploy
-```
-
-The Worker is configured in `worker/wrangler.toml` to write to `Jaruso/moms-cookbook` and accept requests from `https://jaruso.github.io` only. Deployment will print a `https://...workers.dev` URL. No Cloudflare account ID belongs in the repository.
-
-Create a GitHub **fine-grained personal access token** scoped **only** to `Jaruso/moms-cookbook` with **Contents: Read and write**. The token is used only by the Worker to list, create, and update recipe JSON and image files. It does not need Actions, Pages, or Workflows permission. Use a token expiration/renewal plan.
-
-Generate two long independent random secrets locally (example):
-
-```bash
-openssl rand -base64 32   # choose this as the admin password; give it to Mom privately
-openssl rand -base64 32   # SESSION_SECRET; keep private
-```
-
-In the `worker/` directory, set all three Cloudflare Worker secrets (commands prompt for values and **do not** put secrets in git):
-
-```bash
 npx wrangler secret put ADMIN_PASSWORD
 npx wrangler secret put SESSION_SECRET
 npx wrangler secret put GITHUB_TOKEN
 ```
 
-The admin password has no reset-email flow. To rotate it, run `npx wrangler secret put ADMIN_PASSWORD` again. To sign out all existing sessions immediately, also rotate `SESSION_SECRET`. Worker login sessions expire after 4 hours; the browser stores the token only for the current tab session.
+Generate long, independent secrets/passwords (for example, `openssl rand -base64 32`). Give the admin password privately; it is **not** a GitHub Actions secret. Rotate `ADMIN_PASSWORD` to change the password and `SESSION_SECRET` to invalidate existing sessions. Plan to renew the GitHub PAT before expiration.
 
-### 3. Connect the frontend to the Worker
+## Deployment
 
-In the GitHub repository, go to **Settings → Secrets and variables → Actions → Variables → New repository variable** and add:
+### Initial setup
 
-- Name: `VITE_API_URL`
-- Value: the Worker URL printed by `wrangler deploy`, for example `https://moms-cookbook-api.YOUR-SUBDOMAIN.workers.dev` (no trailing `/`).
+1. Install **Node.js 22+** and authenticate Wrangler (`cd worker && npx wrangler login`).
+2. Create the GitHub fine-grained PAT with Contents read/write, and set the three Cloudflare **runtime secrets** above.
+3. Deploy the Worker (manual command below) and verify `GET /api/health`.
+4. In GitHub **Settings → Pages**, select **GitHub Actions** as the source.
+5. Configure the GitHub variable and secrets above. Run the Pages workflow and Worker workflow once to verify deployment.
 
-Then go to **Actions → Deploy GitHub Pages → Run workflow** to rebuild the frontend with the Worker URL. The API URL is public configuration, **not a secret**.
+### Manual triggers (still use GitHub Actions)
 
-## Automatic Cloudflare Worker deployment
+In **Actions**, open **Deploy GitHub Pages** or **Deploy Cloudflare Worker** and select **Run workflow**. This is a manual trigger but still uses the corresponding CI/CD pipeline.
 
-The GitHub Actions workflow in `.github/workflows/deploy-worker.yml` runs the Worker tests and deploys the existing `moms-cookbook-api` Worker when files inside `worker/` change on `main`. You can also run it manually under **Actions → Deploy Cloudflare Worker → Run workflow**. Changes only to recipes or the frontend do not trigger a Worker deployment.
-
-Set these **repository Actions secrets** once under **Settings → Secrets and variables → Actions → New repository secret**:
-
-- `CLOUDFLARE_ACCOUNT_ID` — your Cloudflare account ID (shown in the Cloudflare dashboard).
-- `CLOUDFLARE_API_TOKEN` — a dedicated Cloudflare API token with **Workers Editor** access scoped to the existing Worker `moms-cookbook-api`, or the **Edit Cloudflare Workers** permission scoped to its account if using the standard token template. No GitHub personal access token should be used here.
-
-The workflow uses Cloudflare's `wrangler-action@v4` from the `worker/` directory and does **not** recreate or upload the app's runtime secrets (`ADMIN_PASSWORD`, `SESSION_SECRET`, `GITHUB_TOKEN`). Those remain configured directly in Cloudflare.
-
-**Important:** The initial workflow run fails until both GitHub secrets are configured. To deploy manually instead, run:
+### Fully manual Worker deployment (no GitHub Actions)
 
 ```bash
 git pull
 cd worker
+npx wrangler login        # if needed
 npx wrangler deploy
 ```
 
-The Worker exposes authenticated `GET /api/recipes` (manage list), `PUT /api/recipes/:id` (edit), and `PATCH /api/recipes/:id/visibility` (hide/unhide). Recipe updates use GitHub file SHA checks to reject stale writes.
+Uses `worker/wrangler.toml` and the existing Cloudflare runtime secrets. If this is a new Worker, set those secrets as shown above.
 
-Changes to `worker/src/index.js` (including description validation) need to reach Cloudflare through the Worker deployment workflow. If its GitHub secrets are not configured, run `cd worker && npx wrangler deploy` locally after pulling the latest changes.
+### Fully manual frontend deployment (without the Pages workflow)
 
+```bash
+git pull
+npm install
+VITE_API_URL=https://moms-cookbook-api.joseph-caruso-pc.workers.dev npm run build
+npx --yes gh-pages -d dist -b gh-pages
+```
 
-## Automatic local recovery (no cookies or backend changes)
-
-While Mom edits a recipe, the browser saves her text and ingredient rows to **localStorage** after about one second of inactivity. Each existing recipe gets a separate recovery key, and there is one recovery slot for a new recipe. The editor shows **Saved on this device**, or a warning if browser storage is unavailable.
-
-- After closing the tab, returning to **Admin** shows unfinished work saved on that browser. Selecting it opens a **Continue editing / Start fresh** choice. Choosing Continue restores the form without contacting GitHub.
-- Clicking **Cancel**, **Manage recipes**, **Log out**, or switching to **Recipes** with unsaved edits requests confirmation. Closing or refreshing the tab triggers the browser's native unsaved-changes warning. The most recent form is saved before leaving.
-- **Preview** is not treated as abandoning the editor. Successful **Publish recipe**, **Save changes**, and **Save as draft** clear that recipe's local recovery copy; failed submissions keep it.
-- Photos, passwords, and login tokens are **not** saved in localStorage. If Mom selected a new photo but left before submitting, she must select it again after recovering. The existing saved photo is unaffected.
-- Recovery works only in the **same browser/device** while site data remains available; it is not a replacement for GitHub-backed **Save as draft**. Browser private mode or blocked storage may disable it.
+This publishes the generated `dist/` to a `gh-pages` branch. **Important:** The repository currently uses the GitHub Actions Pages source. To serve a manually pushed build, change **Settings → Pages → Build and deployment → Source** to **Deploy from a branch**, select `gh-pages` and `/(root)`, then save. To resume the current CI-based deployment, switch the Pages source back to **GitHub Actions**. Avoid switching deployment modes unless you actually need to bypass CI; recipe edits will not rebuild the manually published site until you run these commands again.
 
 ## Local development
 
@@ -116,51 +182,46 @@ npm install
 npm run dev
 ```
 
-The `predev` and `prebuild` scripts generate `src/public-recipes.json` from only visible JSON recipes. The generated file is ignored by Git; each Pages build recomputes it. You can test the backend locally with `node --test worker/src/index.test.js`.
+The `predev` and `prebuild` scripts regenerate the visible-only `src/public-recipes.json` before Vite runs; `dist/` and the generated JSON are gitignored.
 
-For the admin editor to work locally, run the Worker with `cd worker && npx wrangler dev`, then create `.env.local` in the repo root with `VITE_API_URL=http://127.0.0.1:8787`. For local Worker testing, add a **gitignored** `worker/.dev.vars` containing `ADMIN_PASSWORD`, `SESSION_SECRET`, and `GITHUB_TOKEN`. Avoid testing writes with the real production token unless you intend to commit recipes.
+For a local admin API, add a gitignored `.env.local` at the repository root:
 
-The Worker accepts both `https://jaruso.github.io` and `http://localhost:5173` (only for local development). API CORS is not the authentication mechanism; every write requires a short-lived signed bearer token.
+```dotenv
+VITE_API_URL=http://127.0.0.1:8787
+```
 
-## Repository layout
+Provide gitignored `worker/.dev.vars` with `ADMIN_PASSWORD`, `SESSION_SECRET`, and `GITHUB_TOKEN`, then start the Worker in another terminal:
+
+```bash
+cd worker
+npx wrangler dev
+```
+
+**Caution:** With a real `GITHUB_TOKEN`, local Worker writes still commit to the configured GitHub repository. Use a test repository/token when exercising writes you do not want in production.
+
+Run the same tests and production build locally:
+
+```bash
+node --test worker/src/index.test.js src/*.test.js
+npm run build
+```
+
+## Repository map and limitations
 
 ```text
-recipes/                 One JSON file per recipe (source of truth)
-public/images/            Optional recipe photos, added through the editor
-src/                      React site and admin UI
-scripts/build-recipes.mjs  Generates the visible-only recipe list for Vite
-worker/src/index.js       Cloudflare Worker API (password login, GitHub writes)
-worker/wrangler.toml      Nonsecret Worker config
-.github/workflows/        GitHub Pages deployment
+recipes/                     Recipe JSON source of truth (main)
+public/images/               Uploaded recipe JPEGs
+src/App.jsx                  React pages, editor, search, print UI
+src/recipe-search.js         Client-side search and ingredient-pill filtering
+src/recovery.js              Local unsaved-form recovery
+scripts/build-recipes.mjs     Visible-only bundle generator
+worker/src/index.js          Cloudflare API, auth, validation, GitHub writes
+worker/wrangler.toml         Worker name, entrypoint, nonsecret bindings
+.github/workflows/           Pages and Worker CI/CD
 ```
 
-Recipe fields: `id`, `title`, `description` (ordered array of paragraphs), `category`, `prepMinutes`, `cookMinutes`, `servings`, `ingredients` (array of strings), `steps` (array of strings), `image` (relative path or null), `draft` (optional boolean, defaults to false), `hidden` (optional boolean, defaults to visible), `ingredientDraftRows` (draft-only entry state), `createdAt`, and `updatedAt` (UTC ISO timestamps). The sample is demonstration content, not an actual family recipe.
-
-### Optional description and paragraph sections
-
-The admin form has an optional **Description** textarea. Separate paragraphs with **one blank line**. The Worker validates the text (up to 30 paragraphs, 2,000 characters each, 12,000 characters total) and saves `description` as an ordered array of strings in each recipe JSON:
-
-```json
-"description": [
-  "The first paragraph of the recipe story.",
-  "The next paragraph, still in the original order."
-]
-```
-
-Existing recipes that used a single description string are accepted by the API and frontend; legacy records are normalized when read or edited. Each paragraph appears as its own `<section class="recipe-description-section">` on the public page. An **empty `recipe-description-insertion` element** is rendered between consecutive sections with `data-after-paragraph` showing its position. This reserves a stable insertion point for future ad components without displaying placeholder ads or injecting scripts today. Recipe cards use the first paragraph as a short preview; search includes all paragraphs.
-
-### Ingredient entry
-
-The admin editor uses ingredient rows with **Amount** (free-form, including fractions like `1 1/2`), a short **Unit** dropdown (`tsp`, `tbsp`, `cup`, `oz`, `lb`, `g`, `ml`, `clove`, `can`, `pinch`, `piece`, or no unit), and **Ingredient**. Selecting **Custom…** reveals a text field for measurements like `bunch` or `sprigs`. The editor converts rows back into the existing string-array format (e.g. `2 cups flour`) when saving, so **the JSON format and Cloudflare Worker API do not change**. Older ingredient strings are read back into the editor conservatively; unknown wording is retained instead of discarded.
-
-
-## Security and limitations
-
-- Only one admin; access depends on keeping the admin password private. Use a long random password.
-- No password recovery; rotate the Cloudflare secret if forgotten.
-- The Worker accepts only JPEG photos from the editor, with a server-side maximum of 1 MB of base64 image content. The editor resizes uploaded images before sending them.
-- Uploading or replacing a photo creates one commit for the image and one for the recipe. If the second write fails, an unused image may remain; the editor reports the failure. Removed/replaced images are not automatically deleted from GitHub.
-- New posts become public when GitHub Actions completes the next Pages deployment, **not immediately** when the API responds.
-- Editing and hiding use authenticated API endpoints and current GitHub file SHA checks. Recipes are not deleted when hidden; public visibility changes after the next Pages build.
-- Drafts and hidden recipes are excluded from the public site, but remain visible in the public GitHub repository.
-- The admin list currently uses GitHub's Contents API, which returns at most 1,000 entries in a directory; split or index recipes if the collection ever grows beyond that.
+- **Updates are eventually visible:** an API write creates a GitHub commit; the next Pages build/deploy publishes it. Check Actions if a recipe has not appeared.
+- **No delete endpoint:** hiding/drafting preserves the JSON file. Replaced/removed photo files are not automatically cleaned up.
+- **Photo writes are not atomic:** uploading a photo and saving its recipe are separate GitHub commits. A failed recipe write can leave an orphan image.
+- **GitHub Contents API limit:** the admin listing uses the directory endpoint (up to ~1,000 files); a larger collection would need pagination/indexing or another storage strategy.
+- **No confidential drafts:** hidden/draft entries are still in the public GitHub repository.
