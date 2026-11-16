@@ -6,7 +6,7 @@ A small, public recipe website hosted on **GitHub Pages**. It uses React/Vite fo
 
 1. Visitors read recipes at `https://jaruso.github.io/moms-cookbook/` — no backend needed for reading.
 2. Mom opens `https://jaruso.github.io/moms-cookbook/#/admin` and enters her one shared admin password.
-3. After signing in, Mom can add a recipe, edit an existing one, or hide/unhide a recipe in the **Manage recipes** list.
+3. After signing in, Mom can add a recipe, edit an existing one, or hide/unhide a recipe in the **Manage recipes** list. Publishing a new recipe returns her to the public home page with a confirmation; new content appears after the Pages rebuild.
 4. The Worker verifies the signed session and commits recipe JSON under `recipes/` and optional images under `public/images/`.
 5. A push to `main` triggers GitHub Actions to rebuild and redeploy GitHub Pages. The build excludes recipes with `"hidden": true` from the public JavaScript bundle.
 
@@ -105,6 +105,11 @@ worker/wrangler.toml      Nonsecret Worker config
 ```
 
 Recipe fields: `id`, `title`, `description`, `category`, `prepMinutes`, `cookMinutes`, `servings`, `ingredients` (array of strings), `steps` (array of strings), `image` (relative path or null), `hidden` (optional boolean, defaults to visible), `createdAt`, and `updatedAt` (UTC ISO timestamps). The sample is demonstration content, not an actual family recipe.
+
+### Ingredient entry
+
+The admin editor uses ingredient rows with **Amount** (free-form, including fractions like `1 1/2`), a short **Unit** dropdown (`tsp`, `tbsp`, `cup`, `oz`, `lb`, `g`, `ml`, `clove`, `can`, `pinch`, `piece`, or no unit), and **Ingredient**. Selecting **Custom…** reveals a text field for measurements like `bunch` or `sprigs`. The editor converts rows back into the existing string-array format (e.g. `2 cups flour`) when saving, so **the JSON format and Cloudflare Worker API do not change**. Older ingredient strings are read back into the editor conservatively; unknown wording is retained instead of discarded.
+
 
 ## Security and limitations
 

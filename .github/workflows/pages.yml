@@ -29,6 +29,8 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Test Worker API
         run: node --test worker/src/index.test.js
+      - name: Test ingredient editor
+        run: node --test src/ingredients.test.js
       - name: Build
         env:
           VITE_API_URL: ${{ vars.VITE_API_URL || 'https://moms-cookbook-api.joseph-caruso-pc.workers.dev' }}
