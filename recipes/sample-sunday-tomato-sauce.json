@@ -1,0 +1,26 @@
+{
+  "id": "sample-sunday-tomato-sauce",
+  "title": "Sunday Tomato Sauce (Sample)",
+  "description": "A simple example recipe to show how the cookbook works. Replace it with one of Mom's recipes.",
+  "category": "Dinner",
+  "prepMinutes": 10,
+  "cookMinutes": 40,
+  "servings": "4–6",
+  "ingredients": [
+    "2 tbsp olive oil",
+    "1 small onion, diced",
+    "3 cloves garlic, minced",
+    "1 can (28 oz) crushed tomatoes",
+    "1 tsp dried oregano",
+    "Salt and pepper, to taste",
+    "A handful of fresh basil"
+  ],
+  "steps": [
+    "Warm the olive oil in a saucepan over medium heat and soften the onion for 5 minutes.",
+    "Stir in garlic for 30 seconds, then add tomatoes, oregano, salt, and pepper.",
+    "Simmer gently for 30–40 minutes, stirring occasionally.",
+    "Finish with torn basil and serve over pasta."
+  ],
+  "image": null,
+  "createdAt": "2026-11-16T00:00:00.000Z"
+}

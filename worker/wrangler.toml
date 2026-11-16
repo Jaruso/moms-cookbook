@@ -1,0 +1,7 @@
+name = "moms-cookbook-api"
+main = "src/index.js"
+compatibility_date = "2026-11-01"
+
+[vars]
+REPO_OWNER = "Jaruso"
+REPO_NAME = "moms-cookbook"
