@@ -11,20 +11,28 @@ function picture(recipe) {
 
 function RecipeDetail({ recipe, onBack }) {
   return (
-    <article>
-      <button type="button" className="text-button" onClick={onBack}>← All recipes</button>
-      <h1>{recipe.title}</h1>
-      {recipe.description && <p>{recipe.description}</p>}
-      <p className="muted">
-        {[recipe.category, recipe.prepMinutes != null && `Prep ${recipe.prepMinutes} min`,
-          recipe.cookMinutes != null && `Cook ${recipe.cookMinutes} min`,
-          recipe.servings && `Serves ${recipe.servings}`].filter(Boolean).join(' · ')}
-      </p>
+    <article className="recipe-detail">
+      <div className="recipe-intro">
+        <button type="button" className="text-button" onClick={onBack}>← All recipes</button>
+        <h1>{recipe.title}</h1>
+        {recipe.description && <p className="recipe-description">{recipe.description}</p>}
+        <p className="recipe-meta">
+          {[recipe.category, recipe.prepMinutes != null && `Prep ${recipe.prepMinutes} min`,
+            recipe.cookMinutes != null && `Cook ${recipe.cookMinutes} min`,
+            recipe.servings && `Serves ${recipe.servings}`].filter(Boolean).join(' · ')}
+        </p>
+      </div>
       {picture(recipe) && <img className="recipe-photo" src={picture(recipe)} alt={recipe.title} />}
-      <h2>Ingredients</h2>
-      <ul>{recipe.ingredients.map((item, i) => <li key={i}>{item}</li>)}</ul>
-      <h2>Directions</h2>
-      <ol>{recipe.steps.map((step, i) => <li key={i}>{step}</li>)}</ol>
+      <div className="recipe-body">
+        <section className="ingredients">
+          <h2>Ingredients</h2>
+          <ul>{recipe.ingredients.map((item, i) => <li key={i}>{item}</li>)}</ul>
+        </section>
+        <section className="directions">
+          <h2>Directions</h2>
+          <ol>{recipe.steps.map((step, i) => <li key={i}>{step}</li>)}</ol>
+        </section>
+      </div>
     </article>
   );
 }
